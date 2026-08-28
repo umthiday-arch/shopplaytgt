@@ -1,10 +1,14 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Khóa bí mật JWT (Mã hóa token)
+const JWT_SECRET = process.env.JWT_SECRET || "shopplaytgt_super_secret_key_2026";
 
 // Kết nối Database
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/shopgame";
@@ -42,6 +46,19 @@ const User = mongoose.model('User', UserSchema);
 const GameAccount = mongoose.model('GameAccount', AccountSchema);
 const Deposit = mongoose.model('Deposit', DepositSchema);
 
+// Middleware xác thực Token (Bảo mật tuyệt đối)
+function verifyToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) return res.status(401).json({ success: false, message: 'Chưa cung cấp Token xác thực!' });
+  
+  const token = authHeader.split(' ')[1];
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ success: false, message: 'Token không hợp lệ hoặc đã hết hạn!' });
+    req.user = decoded; // Lưu thông tin user đã giải mã vào request
+    next();
+  });
+}
+
 // 2. API Đăng Ký & Đăng Nhập
 app.post('/api/register', async (req, res) => {
   try {
@@ -70,12 +87,27 @@ app.post('/api/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ success: false, message: 'Mật khẩu không chính xác!' });
 
+    // Tạo Token có thời hạn 1 ngày
+    const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+
     res.json({
       success: true,
+      token,
       user: { id: user._id, username: user.username, balance: user.balance, role: user.role }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi đăng nhập!' });
+  }
+});
+
+// API Lấy thông tin mới nhất của User (Đồng bộ chống F12 giả mạo)
+app.get('/api/user/me', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id, '-password');
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng!' });
+    res.json({ success: true, user: { id: user._id, username: user.username, balance: user.balance, role: user.role } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
   }
 });
 
@@ -89,10 +121,10 @@ app.get('/api/accounts', async (req, res) => {
   }
 });
 
-app.post('/api/buy', async (req, res) => {
+app.post('/api/buy', verifyToken, async (req, res) => {
   try {
-    const { userId, accId } = req.body;
-    const user = await User.findById(userId);
+    const { accId } = req.body;
+    const user = await User.findById(req.user.id);
     const account = await GameAccount.findById(accId);
 
     if (!account || account.status === 'sold') {
@@ -122,13 +154,13 @@ app.post('/api/buy', async (req, res) => {
   }
 });
 
-app.post('/api/deposit', async (req, res) => {
+app.post('/api/deposit', verifyToken, async (req, res) => {
   try {
-    const { userId, amount } = req.body;
+    const { amount } = req.body;
     const numAmount = Number(amount);
     if (isNaN(numAmount) || numAmount <= 0) return res.status(400).json({ success: false, message: 'Số tiền không hợp lệ!' });
 
-    const user = await User.findById(userId);
+    const user = await User.findById(req.user.id);
     if (user) {
       user.balance += numAmount;
       await user.save();
@@ -141,14 +173,13 @@ app.post('/api/deposit', async (req, res) => {
 });
 
 // 4. API Hồ Sơ Cá Nhân & Đổi Mật Khẩu
-app.get('/api/user/profile/:userId', async (req, res) => {
+app.get('/api/user/profile', verifyToken, async (req, res) => {
   try {
-    const { userId } = req.params;
-    const user = await User.findById(userId, '-password');
+    const user = await User.findById(req.user.id, '-password');
     if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng!' });
 
-    const purchases = await GameAccount.find({ buyer: userId }).sort({ soldAt: -1 });
-    const deposits = await Deposit.find({ userId }).sort({ createdAt: -1 });
+    const purchases = await GameAccount.find({ buyer: req.user.id }).sort({ soldAt: -1 });
+    const deposits = await Deposit.find({ userId: req.user.id }).sort({ createdAt: -1 });
 
     res.json({ success: true, user, purchases, deposits });
   } catch (err) {
@@ -156,12 +187,12 @@ app.get('/api/user/profile/:userId', async (req, res) => {
   }
 });
 
-app.post('/api/user/change-password', async (req, res) => {
+app.post('/api/user/change-password', verifyToken, async (req, res) => {
   try {
-    const { userId, oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword } = req.body;
     if (!oldPassword || !newPassword) return res.status(400).json({ success: false, message: 'Vui lòng điền đủ thông tin!' });
 
-    const user = await User.findById(userId);
+    const user = await User.findById(req.user.id);
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) return res.status(400).json({ success: false, message: 'Mật khẩu cũ không chính xác!' });
 
@@ -174,14 +205,13 @@ app.post('/api/user/change-password', async (req, res) => {
   }
 });
 
-app.post('/api/admin/add-account', async (req, res) => {
+app.post('/api/admin/add-account', verifyToken, async (req, res) => {
   try {
-    const { userId, title, category, price, accUser, accPass, image } = req.body;
-    const user = await User.findById(userId);
-    if (!user || user.role !== 'admin') {
+    if (req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Không có quyền Admin!' });
     }
 
+    const { title, category, price, accUser, accPass, image } = req.body;
     const newAcc = new GameAccount({ title, category, price, accUser, accPass, image });
     await newAcc.save();
     res.json({ success: true, message: 'Đã thêm Acc game mới thành công!' });
@@ -229,7 +259,6 @@ app.get('/', (req, res) => {
       .modal-content { background: #1e293b; padding: 25px; border-radius: 10px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; }
       .modal-content input, .modal-content select { width: 100%; padding: 10px; margin: 8px 0; border-radius: 5px; border: 1px solid #334155; background: #0f172a; color: white; }
       
-      /* Style riêng cho Profile Tabs */
       .profile-tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 1px solid #334155; }
       .tab-btn { background: transparent; color: #94a3b8; border: none; padding: 8px 12px; cursor: pointer; font-weight: 600; }
       .tab-btn.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
@@ -286,7 +315,6 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- Modal Hồ Sơ Cá Nhân -->
     <div class="modal" id="profileModal">
       <div class="modal-content" style="max-width: 650px;">
         <h3>Hồ Sơ Cá Nhân</h3>
@@ -296,7 +324,6 @@ app.get('/', (req, res) => {
           <button class="tab-btn" onclick="switchTab('tabDeposits', this)">Lịch Sử Nạp Tiền</button>
         </div>
 
-        <!-- Tab 1: Tổng Quan & Đổi Mật Khẩu -->
         <div class="tab-content active" id="tabOverview">
           <div id="profileOverview" style="line-height: 1.8; margin-bottom: 15px;"></div>
           <hr style="border-color: #334155; margin: 15px 0;">
@@ -306,7 +333,6 @@ app.get('/', (req, res) => {
           <button class="btn" style="width:100%; margin-top: 5px;" onclick="changePassword()">Cập Nhật Mật Khẩu</button>
         </div>
 
-        <!-- Tab 2: Lịch Sử Mua Acc -->
         <div class="tab-content" id="tabPurchases">
           <div class="table-responsive">
             <table>
@@ -323,7 +349,6 @@ app.get('/', (req, res) => {
           </div>
         </div>
 
-        <!-- Tab 3: Lịch Sử Nạp Tiền -->
         <div class="tab-content" id="tabDeposits">
           <div class="table-responsive">
             <table>
@@ -363,8 +388,31 @@ app.get('/', (req, res) => {
     </div>
 
     <script>
-      let currentUser = JSON.parse(localStorage.getItem('user')) || null;
+      let token = localStorage.getItem('token') || null;
+      let currentUser = null;
       let allAccounts = [];
+
+      async function checkAuth() {
+        if (!token) {
+          currentUser = null;
+          updateHeader();
+          return;
+        }
+        try {
+          const res = await fetch('/api/user/me', {
+            headers: { 'Authorization': \`Bearer \${token}\` }
+          });
+          const data = await res.json();
+          if (data.success) {
+            currentUser = data.user;
+          } else {
+            logout();
+          }
+        } catch (e) {
+          logout();
+        }
+        updateHeader();
+      }
 
       function updateHeader() {
         const userArea = document.getElementById('userArea');
@@ -446,8 +494,9 @@ app.get('/', (req, res) => {
         });
         const data = await res.json();
         if(data.success) {
+          token = data.token;
           currentUser = data.user;
-          localStorage.setItem('user', JSON.stringify(currentUser));
+          localStorage.setItem('token', token);
           updateHeader();
           closeModal('loginModal');
         } else {
@@ -456,7 +505,8 @@ app.get('/', (req, res) => {
       }
 
       function logout() {
-        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        token = null;
         currentUser = null;
         updateHeader();
       }
@@ -467,15 +517,16 @@ app.get('/', (req, res) => {
 
         const res = await fetch('/api/buy', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id, accId })
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': \`Bearer \${token}\`
+          },
+          body: JSON.stringify({ accId })
         });
         const data = await res.json();
         if(data.success) {
-          alert(\`🎉 MUA THÀNH CÔNG!\\n\\nTài khoản: \${data.accUser}\\nMật khẩu: \${data.accPass}\\n\\n(Bạn có thể xem lại thông tin này trong mục Hồ Sơ Cá Nhân)\`);
-          currentUser.balance = data.newBalance;
-          localStorage.setItem('user', JSON.stringify(currentUser));
-          updateHeader();
+          alert(\`🎉 MUA THÀNH CÔNG!\\n\\nTài khoản: \${data.accUser}\\nMật khẩu: \${data.accPass}\\n\\n(Bạn có thể xem lại trong mục Hồ Sơ Cá Nhân)\`);
+          await checkAuth(); // Đồng bộ lại số dư mới nhất từ server
           fetchAccounts();
         } else {
           alert(data.message);
@@ -487,14 +538,15 @@ app.get('/', (req, res) => {
         if(amount) {
           const res = await fetch('/api/deposit', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.id, amount })
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': \`Bearer \${token}\`
+            },
+            body: JSON.stringify({ amount })
           });
           const data = await res.json();
           if(data.success) {
-            currentUser.balance = data.newBalance;
-            localStorage.setItem('user', JSON.stringify(currentUser));
-            updateHeader();
+            await checkAuth(); // Đồng bộ lại số dư thật từ server
             alert('Nạp tiền thành công!');
           }
         }
@@ -504,13 +556,14 @@ app.get('/', (req, res) => {
         if(!currentUser) return;
         openModal('profileModal');
         
-        const res = await fetch(\`/api/user/profile/\${currentUser.id}\`);
+        const res = await fetch('/api/user/profile', {
+          headers: { 'Authorization': \`Bearer \${token}\` }
+        });
         const data = await res.json();
 
         if(data.success) {
           const { user, purchases, deposits } = data;
           
-          // Tính tổng nạp & Cấp độ VIP
           const totalDeposited = deposits.reduce((sum, d) => sum + d.amount, 0);
           let rank = 'Thành Viên Mới';
           if(totalDeposited >= 1000000) rank = 'VIP Kim Cương 💎';
@@ -518,7 +571,6 @@ app.get('/', (req, res) => {
           else if(totalDeposited >= 200000) rank = 'VIP Bạc 🥈';
           else if(totalDeposited >= 100000) rank = 'VIP Đồng 🥉';
 
-          // Render Tab 1: Tổng quan
           document.getElementById('profileOverview').innerHTML = \`
             <p>Tên tài khoản: <b>\${user.username}</b></p>
             <p>Cấp độ: <span class="rank-badge">\${rank}</span></p>
@@ -527,7 +579,6 @@ app.get('/', (req, res) => {
             <p>Acc đã mua: <b>\${purchases.length} Acc</b></p>
           \`;
 
-          // Render Tab 2: Lịch sử mua
           const purchaseBody = document.getElementById('purchaseTableBody');
           purchaseBody.innerHTML = purchases.length === 0 ? '<tr><td colspan="4" style="text-align:center;">Chưa mua Acc nào</td></tr>' : '';
           purchases.forEach(p => {
@@ -546,7 +597,6 @@ app.get('/', (req, res) => {
             \`;
           });
 
-          // Render Tab 3: Lịch sử nạp
           const depositBody = document.getElementById('depositTableBody');
           depositBody.innerHTML = deposits.length === 0 ? '<tr><td colspan="3" style="text-align:center;">Chưa có lịch sử nạp</td></tr>' : '';
           deposits.forEach(d => {
@@ -574,8 +624,11 @@ app.get('/', (req, res) => {
 
         const res = await fetch('/api/user/change-password', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id, oldPassword, newPassword })
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': \`Bearer \${token}\`
+          },
+          body: JSON.stringify({ oldPassword, newPassword })
         });
         const data = await res.json();
         alert(data.message);
@@ -603,8 +656,11 @@ app.get('/', (req, res) => {
 
         const res = await fetch('/api/admin/add-account', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id, title, category, price, accUser, accPass, image })
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': \`Bearer \${token}\`
+          },
+          body: JSON.stringify({ title, category, price, accUser, accPass, image })
         });
         const data = await res.json();
         alert(data.message);
@@ -617,7 +673,8 @@ app.get('/', (req, res) => {
       function openModal(id) { document.getElementById(id).style.display = 'flex'; }
       function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-      updateHeader();
+      // Khởi động chạy kiểm tra xác thực
+      checkAuth();
       fetchAccounts();
     </script>
   </body>
