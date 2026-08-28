@@ -712,6 +712,50 @@ app.get('/', (req, res) => {
       checkAuth();
       fetchAccounts();
     </script>
+    <!-- CHÂN TRANG (FOOTER) -->
+    <footer style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 40px 20px 20px; margin-top: 50px; font-size: 14px;">
+      <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px;">
+        
+        <!-- Cột 1: Thông tin Shop -->
+        <div>
+          <div class="logo" style="margin-bottom: 12px; font-size: 20px;">🎮 SHOP GAME VIP</div>
+          <p style="line-height: 1.6; margin-bottom: 15px;">Hệ thống chuyên cung cấp tài khoản game uy tín, giá rẻ, giao dịch tự động nhanh chóng và bảo mật 24/7.</p>
+          <div style="display: flex; gap: 10px;">
+            <span style="background: rgba(56,189,248,0.1); color: #38bdf8; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">Giao dịch tự động</span>
+            <span style="background: rgba(74,222,128,0.1); color: #4ade80; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">Uy tín 100%</span>
+          </div>
+        </div>
+
+        <!-- Cột 2: Hỗ trợ khách hàng -->
+        <div>
+          <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">HỖ TRỢ KHÁCH HÀNG</h4>
+          <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px;">
+            <li><a href="#" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">Hướng dẫn nạp tiền / Mua hàng</a></li>
+            <li><a href="#" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">Chính sách bảo hành tài khoản</a></li>
+            <li><a href="#" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">Kiểm tra tình trạng đơn hàng</a></li>
+          </ul>
+        </div>
+
+        <!-- Cột 3: Kết nối với chúng tôi -->
+        <div>
+          <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">KẾT NỐI VỚI CHÚNG TÔI</h4>
+          <p style="margin-bottom: 10px;">Hotline / Zalo: <strong style="color: #38bdf8;">0123.456.789</strong></p>
+          <p style="margin-bottom: 15px;">Fanpage hỗ trợ: <a href="#" style="color: #38bdf8; text-decoration: none;">fb.com/shopcuaban</a></p>
+          <div style="display: flex; gap: 10px; font-size: 20px;">
+            <!-- Các icon tượng trưng phương thức thanh toán / liên hệ -->
+            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #fff;">Momo</span>
+            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #fff;">ATM Banking</span>
+            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #fff;">Thẻ Cào</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Dòng bản quyền phía dưới cùng -->
+      <div style="text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; font-size: 13px;">
+        <p>© 2026 <strong>Shop Game VIP</strong>. All rights reserved. Thiết kế tối ưu cho game thủ.</p>
+      </div>
+    </footer>
   </body>
   </html>
   `);
