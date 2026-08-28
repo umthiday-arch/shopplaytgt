@@ -25,8 +25,8 @@ const AccountSchema = new mongoose.Schema({
   title: { type: String, required: true },
   category: { type: String, required: true }, // 'playtogether', 'lienquan', 'freefire', 'random'
   price: { type: Number, required: true },
-  accUser: { type: String, required: true }, // Tài khoản game để bán
-  accPass: { type: String, required: true }, // Mật khẩu game để bán
+  accUser: { type: String, required: true }, // Tài khoản game bàn giao
+  accPass: { type: String, required: true }, // Mật khẩu game bàn giao
   image: { type: String, default: 'https://via.placeholder.com/300x180?text=Acc+Game' },
   status: { type: String, default: 'available' }, // 'available' (còn hàng) hoặc 'sold' (đã bán)
   buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
@@ -39,13 +39,26 @@ const GameAccount = mongoose.model('GameAccount', AccountSchema);
 app.post('/api/register', async (req, res) => {
   try {
     const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ success: false, message: 'Vui lòng điền đầy đủ thông tin!' });
+
     const existingUser = await User.findOne({ username });
     if (existingUser) return res.status(400).json({ success: false, message: 'Tên tài khoản đã tồn tại!' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ username, password: hashedPassword, balance: 100000 }); // Tặng sẵn 100k test
+
+    // Mặc định tất cả mọi người đăng ký đều là 'user' thường
+    const newUser = new User({ 
+      username, 
+      password: hashedPassword, 
+      balance: 100000, // Tặng 100k trải nghiệm
+      role: 'user'
+    });
+
     await newUser.save();
-    res.json({ success: true, message: 'Đăng ký thành công! Đã tặng 100.000đ trải nghiệm.' });
+    res.json({ 
+      success: true, 
+      message: 'Đăng ký thành công! Đã nhận 100.000đ trải nghiệm.' 
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
   }
@@ -72,7 +85,6 @@ app.post('/api/login', async (req, res) => {
 // 3. API Quản Lý Acc Game & Mua Bán
 app.get('/api/accounts', async (req, res) => {
   try {
-    // Chỉ lấy thông tin công khai, ẩn tài khoản/mật khẩu game
     const accounts = await GameAccount.find({}, '-accUser -accPass');
     res.json(accounts);
   } catch (err) {
@@ -93,7 +105,6 @@ app.post('/api/buy', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Số dư không đủ! Vui lòng nạp thêm.' });
     }
 
-    // Trừ tiền và chuyển trạng thái Acc
     user.balance -= account.price;
     account.status = 'sold';
     account.buyer = user._id;
@@ -113,7 +124,6 @@ app.post('/api/buy', async (req, res) => {
   }
 });
 
-// API Nạp Tiền Giả Lập
 app.post('/api/deposit', async (req, res) => {
   const { userId, amount } = req.body;
   const user = await User.findById(userId);
@@ -124,19 +134,25 @@ app.post('/api/deposit', async (req, res) => {
   }
 });
 
-// API Admin Thêm Acc Game Mới
+// API Admin Thêm Acc Game Mới (Chỉ tài khoản role = 'admin' mới gọi được)
 app.post('/api/admin/add-account', async (req, res) => {
   try {
-    const { title, category, price, accUser, accPass, image } = req.body;
+    const { userId, title, category, price, accUser, accPass, image } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Bạn không phải Admin! Không có quyền đăng bán Acc.' });
+    }
+
     const newAcc = new GameAccount({ title, category, price, accUser, accPass, image });
     await newAcc.save();
-    res.json({ success: true, message: 'Đã thêm Acc game mới lên Shop!' });
+    res.json({ success: true, message: 'Đã thêm Acc game mới lên Shop thành công!' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi thêm Acc!' });
   }
 });
 
-// 4. Giao diện Web chính (HTML/CSS/JS)
+// 4. Giao diện Web
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
@@ -148,11 +164,14 @@ app.get('/', (req, res) => {
     <style>
       * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
       body { background: #0f172a; color: #f8fafc; }
-      header { background: #1e293b; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3b82f6; }
+      header { background: #1e293b; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3b82f6; flex-wrap: wrap; gap: 10px; }
       .logo { font-size: 22px; font-weight: bold; color: #38bdf8; }
-      .user-info { display: flex; gap: 15px; align-items: center; }
+      .user-info { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      .badge-admin { background: #f59e0b; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
       .btn { background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
       .btn:hover { background: #1d4ed8; }
+      .btn-admin { background: #d97706; }
+      .btn-admin:hover { background: #b45309; }
       .btn-danger { background: #ef4444; }
       .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
       .categories { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; }
@@ -166,8 +185,8 @@ app.get('/', (req, res) => {
       .status { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 10px; }
       .status-available { background: #166534; color: #86efac; }
       .status-sold { background: #991b1b; color: #fca5a5; }
-      .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
-      .modal-content { background: #1e293b; padding: 25px; border-radius: 10px; width: 320px; }
+      .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
+      .modal-content { background: #1e293b; padding: 25px; border-radius: 10px; width: 340px; }
       .modal-content input, .modal-content select { width: 100%; padding: 10px; margin: 8px 0; border-radius: 5px; border: 1px solid #334155; background: #0f172a; color: white; }
     </style>
   </head>
@@ -216,7 +235,7 @@ app.get('/', (req, res) => {
 
     <div class="modal" id="adminModal">
       <div class="modal-content" style="width: 400px;">
-        <h3>Đăng Bán Acc Game Mới</h3>
+        <h3>Đăng Bán Acc Game Mới (ADMIN)</h3>
         <input type="text" id="accTitle" placeholder="Tiêu đề (VD: Acc PlayTogether Full Nhà)">
         <select id="accCat">
           <option value="playtogether">PlayTogether</option>
@@ -228,7 +247,7 @@ app.get('/', (req, res) => {
         <input type="text" id="accGameUser" placeholder="Tài khoản game bàn giao">
         <input type="text" id="accGamePass" placeholder="Mật khẩu game bàn giao">
         <input type="text" id="accImage" placeholder="Link ảnh minh họa">
-        <button class="btn" style="width:100%" onclick="addAccount()">Đăng Lên Shop</button>
+        <button class="btn btn-admin" style="width:100%" onclick="addAccount()">Đăng Lên Shop</button>
         <button class="btn btn-danger" style="width:100%; margin-top:5px;" onclick="closeModal('adminModal')">Đóng</button>
       </div>
     </div>
@@ -240,10 +259,11 @@ app.get('/', (req, res) => {
       function updateHeader() {
         const userArea = document.getElementById('userArea');
         if (currentUser) {
+          const isAdmin = currentUser.role === 'admin';
           userArea.innerHTML = \`
-            <span>👤 <b>\${currentUser.username}</b> | Số dư: <b style="color:#4ade80">\${currentUser.balance.toLocaleString()}đ</b></span>
+            <span>👤 <b>\${currentUser.username}</b> \${isAdmin ? '<span class="badge-admin">ADMIN</span>' : ''} | Số dư: <b style="color:#4ade80">\${currentUser.balance.toLocaleString()}đ</b></span>
             <button class="btn" onclick="depositMoney()">+ Nạp Tiền</button>
-            <button class="btn" onclick="openModal('adminModal')">+ Đăng Acc</button>
+            \${isAdmin ? '<button class="btn btn-admin" onclick="openModal(\\'adminModal\\')">+ Đăng Acc</button>' : ''}
             <button class="btn btn-danger" onclick="logout()">Đăng Xuất</button>
           \`;
         } else {
@@ -266,7 +286,7 @@ app.get('/', (req, res) => {
         const filtered = category === 'all' ? allAccounts : allAccounts.filter(a => a.category === category);
 
         if(filtered.length === 0) {
-          grid.innerHTML = '<p>Chưa có Acc nào trong danh mục này.</p>';
+          grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 40px 0;">Chưa có Acc nào trong danh mục này.</p>';
           return;
         }
 
@@ -281,7 +301,7 @@ app.get('/', (req, res) => {
                 </span>
                 <h4>\${acc.title}</h4>
                 <div class="price">\${acc.price.toLocaleString()} VNĐ</div>
-                <button class="btn" style="width:100%" \${isSold ? 'disabled style="opacity:0.5"' : ''} onclick="buyAccount('\${acc._id}')">
+                <button class="btn" style="width:100%" \${isSold ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} onclick="buyAccount('\${acc._id}')">
                   \${isSold ? 'Hết Hàng' : 'Mua Ngay'}
                 </button>
               </div>
@@ -372,6 +392,8 @@ app.get('/', (req, res) => {
       }
 
       async function addAccount() {
+        if(!currentUser || currentUser.role !== 'admin') return alert('Bạn không có quyền thực hiện!');
+
         const title = document.getElementById('accTitle').value;
         const category = document.getElementById('accCat').value;
         const price = document.getElementById('accPrice').value;
@@ -379,10 +401,12 @@ app.get('/', (req, res) => {
         const accPass = document.getElementById('accGamePass').value;
         const image = document.getElementById('accImage').value || 'https://via.placeholder.com/300x180?text=Acc+Game';
 
+        if(!title || !price || !accUser || !accPass) return alert('Vui lòng nhập đầy đủ thông tin Acc!');
+
         const res = await fetch('/api/admin/add-account', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, category, price, accUser, accPass, image })
+          body: JSON.stringify({ userId: currentUser.id, title, category, price, accUser, accPass, image })
         });
         const data = await res.json();
         alert(data.message);
