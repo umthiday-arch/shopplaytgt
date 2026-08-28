@@ -1,7 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const path = require('path');
 
 const app = express();
 app.use(express.json());
@@ -29,11 +28,19 @@ const AccountSchema = new mongoose.Schema({
   accPass: { type: String, required: true }, 
   image: { type: String, default: 'https://via.placeholder.com/300x180?text=Acc+Game' },
   status: { type: String, default: 'available' }, 
-  buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
+  buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  soldAt: { type: Date, default: null }
+});
+
+const DepositSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  amount: { type: Number, required: true },
+  createdAt: { type: Date, default: Date.now }
 });
 
 const User = mongoose.model('User', UserSchema);
 const GameAccount = mongoose.model('GameAccount', AccountSchema);
+const Deposit = mongoose.model('Deposit', DepositSchema);
 
 // 2. API Đăng Ký & Đăng Nhập
 app.post('/api/register', async (req, res) => {
@@ -45,19 +52,10 @@ app.post('/api/register', async (req, res) => {
     if (existingUser) return res.status(400).json({ success: false, message: 'Tên tài khoản đã tồn tại!' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = new User({ 
-      username, 
-      password: hashedPassword, 
-      balance: 100000, 
-      role: 'user'
-    });
+    const newUser = new User({ username, password: hashedPassword, balance: 100000, role: 'user' });
 
     await newUser.save();
-    res.json({ 
-      success: true, 
-      message: 'Đăng ký thành công! Đã nhận 100.000đ trải nghiệm.' 
-    });
+    res.json({ success: true, message: 'Đăng ký thành công! Đã nhận 100.000đ trải nghiệm.' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi máy chủ!' });
   }
@@ -81,7 +79,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// 3. API Quản Lý Acc Game & Mua Bán
+// 3. API Quản Lý Acc, Mua Bán & Nạp Tiền
 app.get('/api/accounts', async (req, res) => {
   try {
     const accounts = await GameAccount.find({}, '-accUser -accPass');
@@ -107,6 +105,7 @@ app.post('/api/buy', async (req, res) => {
     user.balance -= account.price;
     account.status = 'sold';
     account.buyer = user._id;
+    account.soldAt = new Date();
 
     await user.save();
     await account.save();
@@ -124,33 +123,74 @@ app.post('/api/buy', async (req, res) => {
 });
 
 app.post('/api/deposit', async (req, res) => {
-  const { userId, amount } = req.body;
-  const user = await User.findById(userId);
-  if (user) {
-    user.balance += Number(amount);
+  try {
+    const { userId, amount } = req.body;
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || numAmount <= 0) return res.status(400).json({ success: false, message: 'Số tiền không hợp lệ!' });
+
+    const user = await User.findById(userId);
+    if (user) {
+      user.balance += numAmount;
+      await user.save();
+      await new Deposit({ userId: user._id, amount: numAmount }).save();
+      res.json({ success: true, newBalance: user.balance });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi nạp tiền!' });
+  }
+});
+
+// 4. API Hồ Sơ Cá Nhân & Đổi Mật Khẩu
+app.get('/api/user/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId, '-password');
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng!' });
+
+    const purchases = await GameAccount.find({ buyer: userId }).sort({ soldAt: -1 });
+    const deposits = await Deposit.find({ userId }).sort({ createdAt: -1 });
+
+    res.json({ success: true, user, purchases, deposits });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi tải hồ sơ!' });
+  }
+});
+
+app.post('/api/user/change-password', async (req, res) => {
+  try {
+    const { userId, oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) return res.status(400).json({ success: false, message: 'Vui lòng điền đủ thông tin!' });
+
+    const user = await User.findById(userId);
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) return res.status(400).json({ success: false, message: 'Mật khẩu cũ không chính xác!' });
+
+    user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
-    res.json({ success: true, newBalance: user.balance });
+
+    res.json({ success: true, message: 'Đổi mật khẩu thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi đổi mật khẩu!' });
   }
 });
 
 app.post('/api/admin/add-account', async (req, res) => {
   try {
     const { userId, title, category, price, accUser, accPass, image } = req.body;
-
     const user = await User.findById(userId);
     if (!user || user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Bạn không phải Admin! Không có quyền đăng bán Acc.' });
+      return res.status(403).json({ success: false, message: 'Không có quyền Admin!' });
     }
 
     const newAcc = new GameAccount({ title, category, price, accUser, accPass, image });
     await newAcc.save();
-    res.json({ success: true, message: 'Đã thêm Acc game mới lên Shop thành công!' });
+    res.json({ success: true, message: 'Đã thêm Acc game mới thành công!' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Lỗi thêm Acc!' });
   }
 });
 
-// 4. Giao diện Web
+// 5. Giao diện Web
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
@@ -164,13 +204,16 @@ app.get('/', (req, res) => {
       body { background: #0f172a; color: #f8fafc; }
       header { background: #1e293b; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3b82f6; flex-wrap: wrap; gap: 10px; }
       .logo { font-size: 22px; font-weight: bold; color: #38bdf8; }
-      .user-info { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      .user-info { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .badge-admin { background: #f59e0b; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
-      .btn { background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+      .btn { background: #2563eb; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
       .btn:hover { background: #1d4ed8; }
       .btn-admin { background: #d97706; }
       .btn-admin:hover { background: #b45309; }
+      .btn-profile { background: #8b5cf6; }
+      .btn-profile:hover { background: #7c3aed; }
       .btn-danger { background: #ef4444; }
+      .btn-sm { padding: 4px 8px; font-size: 12px; }
       .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
       .categories { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; }
       .cat-btn { background: #334155; color: white; padding: 10px 20px; border-radius: 20px; border: none; cursor: pointer; }
@@ -182,9 +225,22 @@ app.get('/', (req, res) => {
       .price { color: #4ade80; font-size: 18px; font-weight: bold; margin: 10px 0; }
       .status { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 10px; }
       .status-available { background: #166534; color: #86efac; }
-      .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
-      .modal-content { background: #1e293b; padding: 25px; border-radius: 10px; width: 340px; }
+      .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; padding: 10px; }
+      .modal-content { background: #1e293b; padding: 25px; border-radius: 10px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; }
       .modal-content input, .modal-content select { width: 100%; padding: 10px; margin: 8px 0; border-radius: 5px; border: 1px solid #334155; background: #0f172a; color: white; }
+      
+      /* Style riêng cho Profile Tabs */
+      .profile-tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 1px solid #334155; }
+      .tab-btn { background: transparent; color: #94a3b8; border: none; padding: 8px 12px; cursor: pointer; font-weight: 600; }
+      .tab-btn.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
+      .tab-content { display: none; }
+      .tab-content.active { display: block; }
+      .table-responsive { width: 100%; overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+      th, td { padding: 10px; text-align: left; border-bottom: 1px solid #334155; }
+      th { background: #0f172a; color: #38bdf8; }
+      .acc-box { background: #0f172a; padding: 6px; border-radius: 4px; font-family: monospace; font-size: 12px; margin-top: 4px; word-break: break-all; }
+      .rank-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #38bdf8; color: #000; }
     </style>
   </head>
   <body>
@@ -230,8 +286,65 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
+    <!-- Modal Hồ Sơ Cá Nhân -->
+    <div class="modal" id="profileModal">
+      <div class="modal-content" style="max-width: 650px;">
+        <h3>Hồ Sơ Cá Nhân</h3>
+        <div class="profile-tabs">
+          <button class="tab-btn active" onclick="switchTab('tabOverview', this)">Thông Tin</button>
+          <button class="tab-btn" onclick="switchTab('tabPurchases', this)">Lịch Sử Mua Acc</button>
+          <button class="tab-btn" onclick="switchTab('tabDeposits', this)">Lịch Sử Nạp Tiền</button>
+        </div>
+
+        <!-- Tab 1: Tổng Quan & Đổi Mật Khẩu -->
+        <div class="tab-content active" id="tabOverview">
+          <div id="profileOverview" style="line-height: 1.8; margin-bottom: 15px;"></div>
+          <hr style="border-color: #334155; margin: 15px 0;">
+          <h4>🔑 Đổi Mật Khẩu</h4>
+          <input type="password" id="oldPass" placeholder="Mật khẩu hiện tại">
+          <input type="password" id="newPass" placeholder="Mật khẩu mới">
+          <button class="btn" style="width:100%; margin-top: 5px;" onclick="changePassword()">Cập Nhật Mật Khẩu</button>
+        </div>
+
+        <!-- Tab 2: Lịch Sử Mua Acc -->
+        <div class="tab-content" id="tabPurchases">
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Acc đã mua</th>
+                  <th>Giá</th>
+                  <th>Thông tin bàn giao</th>
+                  <th>Ngày mua</th>
+                </tr>
+              </thead>
+              <tbody id="purchaseTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab 3: Lịch Sử Nạp Tiền -->
+        <div class="tab-content" id="tabDeposits">
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Số tiền</th>
+                  <th>Trạng thái</th>
+                  <th>Thời gian</th>
+                </tr>
+              </thead>
+              <tbody id="depositTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <button class="btn btn-danger" style="width:100%; margin-top:15px;" onclick="closeModal('profileModal')">Đóng</button>
+      </div>
+    </div>
+
     <div class="modal" id="adminModal">
-      <div class="modal-content" style="width: 400px;">
+      <div class="modal-content">
         <h3>Đăng Bán Acc Game Mới (ADMIN)</h3>
         <input type="text" id="accTitle" placeholder="Tiêu đề (VD: Acc PlayTogether Full Nhà)">
         <select id="accCat">
@@ -259,6 +372,7 @@ app.get('/', (req, res) => {
           const isAdmin = currentUser.role === 'admin';
           userArea.innerHTML = \`
             <span>👤 <b>\${currentUser.username}</b> \${isAdmin ? '<span class="badge-admin">ADMIN</span>' : ''} | Số dư: <b style="color:#4ade80">\${currentUser.balance.toLocaleString()}đ</b></span>
+            <button class="btn btn-profile" onclick="openProfile()">👤 Hồ Sơ</button>
             <button class="btn" onclick="depositMoney()">+ Nạp Tiền</button>
             \${isAdmin ? '<button class="btn btn-admin" onclick="openModal(\\'adminModal\\')">+ Đăng Acc</button>' : ''}
             <button class="btn btn-danger" onclick="logout()">Đăng Xuất</button>
@@ -280,8 +394,6 @@ app.get('/', (req, res) => {
       function renderAccounts(category) {
         const grid = document.getElementById('accountGrid');
         grid.innerHTML = '';
-
-        // TỰ ĐỘNG LỌC BỎ CÁC ACC ĐÃ BÁN (status === 'sold')
         const availableAccounts = allAccounts.filter(a => a.status !== 'sold');
         const filtered = category === 'all' ? availableAccounts : availableAccounts.filter(a => a.category === category);
 
@@ -298,9 +410,7 @@ app.get('/', (req, res) => {
                 <span class="status status-available">SẴN HÀNG</span>
                 <h4>\${acc.title}</h4>
                 <div class="price">\${acc.price.toLocaleString()} VNĐ</div>
-                <button class="btn" style="width:100%" onclick="buyAccount('\${acc._id}')">
-                  Mua Ngay
-                </button>
+                <button class="btn" style="width:100%" onclick="buyAccount('\${acc._id}')">Mua Ngay</button>
               </div>
             </div>
           \`;
@@ -362,11 +472,11 @@ app.get('/', (req, res) => {
         });
         const data = await res.json();
         if(data.success) {
-          alert(\`🎉 MUA THÀNH CÔNG!\\n\\nTài khoản: \${data.accUser}\\nMật khẩu: \${data.accPass}\\n\\n(Hãy lưu lại thông tin này ngay!)\`);
+          alert(\`🎉 MUA THÀNH CÔNG!\\n\\nTài khoản: \${data.accUser}\\nMật khẩu: \${data.accPass}\\n\\n(Bạn có thể xem lại thông tin này trong mục Hồ Sơ Cá Nhân)\`);
           currentUser.balance = data.newBalance;
           localStorage.setItem('user', JSON.stringify(currentUser));
           updateHeader();
-          fetchAccounts(); // Tải lại danh sách, Acc vừa mua sẽ lập tức biến mất
+          fetchAccounts();
         } else {
           alert(data.message);
         }
@@ -381,16 +491,107 @@ app.get('/', (req, res) => {
             body: JSON.stringify({ userId: currentUser.id, amount })
           });
           const data = await res.json();
-          currentUser.balance = data.newBalance;
-          localStorage.setItem('user', JSON.stringify(currentUser));
-          updateHeader();
-          alert('Nạp tiền thành công!');
+          if(data.success) {
+            currentUser.balance = data.newBalance;
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            updateHeader();
+            alert('Nạp tiền thành công!');
+          }
         }
+      }
+
+      async function openProfile() {
+        if(!currentUser) return;
+        openModal('profileModal');
+        
+        const res = await fetch(\`/api/user/profile/\${currentUser.id}\`);
+        const data = await res.json();
+
+        if(data.success) {
+          const { user, purchases, deposits } = data;
+          
+          // Tính tổng nạp & Cấp độ VIP
+          const totalDeposited = deposits.reduce((sum, d) => sum + d.amount, 0);
+          let rank = 'Thành Viên Mới';
+          if(totalDeposited >= 1000000) rank = 'VIP Kim Cương 💎';
+          else if(totalDeposited >= 500000) rank = 'VIP Vàng 🥇';
+          else if(totalDeposited >= 200000) rank = 'VIP Bạc 🥈';
+          else if(totalDeposited >= 100000) rank = 'VIP Đồng 🥉';
+
+          // Render Tab 1: Tổng quan
+          document.getElementById('profileOverview').innerHTML = \`
+            <p>Tên tài khoản: <b>\${user.username}</b></p>
+            <p>Cấp độ: <span class="rank-badge">\${rank}</span></p>
+            <p>Số dư hiện tại: <b style="color:#4ade80">\${user.balance.toLocaleString()} VNĐ</b></p>
+            <p>Tổng tiền đã nạp: <b>\${totalDeposited.toLocaleString()} VNĐ</b></p>
+            <p>Acc đã mua: <b>\${purchases.length} Acc</b></p>
+          \`;
+
+          // Render Tab 2: Lịch sử mua
+          const purchaseBody = document.getElementById('purchaseTableBody');
+          purchaseBody.innerHTML = purchases.length === 0 ? '<tr><td colspan="4" style="text-align:center;">Chưa mua Acc nào</td></tr>' : '';
+          purchases.forEach(p => {
+            const dateStr = p.soldAt ? new Date(p.soldAt).toLocaleString('vi-VN') : 'Không rõ';
+            const accInfoStr = \`TK: \${p.accUser} | MK: \${p.accPass}\`;
+            purchaseBody.innerHTML += \`
+              <tr>
+                <td><b>\${p.title}</b></td>
+                <td style="color:#4ade80">\${p.price.toLocaleString()}đ</td>
+                <td>
+                  <div class="acc-box">\${accInfoStr}</div>
+                  <button class="btn btn-sm" style="margin-top:3px;" onclick="copyText('\${accInfoStr}')">📋 Copy</button>
+                </td>
+                <td>\${dateStr}</td>
+              </tr>
+            \`;
+          });
+
+          // Render Tab 3: Lịch sử nạp
+          const depositBody = document.getElementById('depositTableBody');
+          depositBody.innerHTML = deposits.length === 0 ? '<tr><td colspan="3" style="text-align:center;">Chưa có lịch sử nạp</td></tr>' : '';
+          deposits.forEach(d => {
+            depositBody.innerHTML += \`
+              <tr>
+                <td style="color:#4ade80">+ \${d.amount.toLocaleString()} VNĐ</td>
+                <td><span style="color:#86efac">Thành công</span></td>
+                <td>\${new Date(d.createdAt).toLocaleString('vi-VN')}</td>
+              </tr>
+            \`;
+          });
+        }
+      }
+
+      function switchTab(tabId, btn) {
+        document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(tb => tb.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        btn.classList.add('active');
+      }
+
+      async function changePassword() {
+        const oldPassword = document.getElementById('oldPass').value;
+        const newPassword = document.getElementById('newPass').value;
+
+        const res = await fetch('/api/user/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id, oldPassword, newPassword })
+        });
+        const data = await res.json();
+        alert(data.message);
+        if(data.success) {
+          document.getElementById('oldPass').value = '';
+          document.getElementById('newPass').value = '';
+        }
+      }
+
+      function copyText(text) {
+        navigator.clipboard.writeText(text);
+        alert('Đã sao chép thông tin Acc!');
       }
 
       async function addAccount() {
         if(!currentUser || currentUser.role !== 'admin') return alert('Bạn không có quyền thực hiện!');
-
         const title = document.getElementById('accTitle').value;
         const category = document.getElementById('accCat').value;
         const price = document.getElementById('accPrice').value;
