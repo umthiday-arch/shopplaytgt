@@ -231,45 +231,80 @@ app.get('/', (req, res) => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
       * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
-      body { background: #0f172a; color: #f8fafc; }
-      header { background: #1e293b; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3b82f6; flex-wrap: wrap; gap: 10px; }
-      .logo { font-size: 22px; font-weight: bold; color: #38bdf8; }
+      
+      /* 1. ĐỔI HÌNH NỀN TOÀN WEB TẠI ĐÂY */
+      body { 
+        background-color: #0f172a; 
+        /* Link ảnh nền (bạn có thể thay link ảnh Play Together của bạn vào giữa 2 dấu ngoặc đơn) */
+        background-image: url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop'); 
+        background-size: cover;
+        background-attachment: fixed;
+        background-position: center;
+        color: #f8fafc; 
+      }
+
+      /* 2. HIỆU ỨNG KÍNH MỜ (GLASSMORPHISM) CHO THANH MENU VÀ THẺ ACC */
+      header { 
+        background: rgba(30, 41, 59, 0.85); /* Trong suốt 85% */
+        backdrop-filter: blur(12px); /* Làm mờ cảnh phía sau */
+        padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #38bdf8; flex-wrap: wrap; gap: 10px; 
+        position: sticky; top: 0; z-index: 50;
+      }
+      .card { 
+        background: rgba(30, 41, 59, 0.85); 
+        backdrop-filter: blur(10px); 
+        border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: 0.3s; 
+      }
+      
+      /* 3. HIỆU ỨNG 3D VÀ PHÁT SÁNG KHI DI CHUỘT (HOVER) */
+      .card:hover { transform: translateY(-10px); border-color: #38bdf8; box-shadow: 0 15px 40px rgba(56,189,248,0.4); }
+      .logo { font-size: 24px; font-weight: 900; color: #fff; text-shadow: 0 0 10px #38bdf8, 0 0 20px #38bdf8; }
+      
+      /* 4. LÀM ĐẸP NÚT BẤM VỚI MÀU GRADIENT (CHUYỂN MÀU) */
+      .btn { background: linear-gradient(45deg, #2563eb, #38bdf8); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.3s; box-shadow: 0 4px 15px rgba(37,99,235,0.4); }
+      .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(56,189,248,0.6); }
+      .btn-admin { background: linear-gradient(45deg, #d97706, #f59e0b); box-shadow: 0 4px 15px rgba(217,119,6,0.4); }
+      .btn-profile { background: linear-gradient(45deg, #7c3aed, #a78bfa); box-shadow: 0 4px 15px rgba(124,58,237,0.4); }
+      .btn-danger { background: linear-gradient(45deg, #e11d48, #fb7185); box-shadow: 0 4px 15px rgba(225,29,72,0.4); }
+      .cat-btn { background: rgba(51, 65, 85, 0.8); backdrop-filter: blur(5px); color: white; padding: 12px 25px; border-radius: 30px; border: 1px solid #475569; cursor: pointer; transition: 0.3s; font-weight: 600;}
+      .cat-btn:hover { background: #38bdf8; color: #0f172a; transform: scale(1.05); }
+      .cat-btn.active { background: #38bdf8; color: #0f172a; box-shadow: 0 0 15px #38bdf8; border: none; }
+      
+      /* CÁC THÀNH PHẦN KHÁC (Giữ nguyên cấu trúc, thêm hiệu ứng) */
       .user-info { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .badge-admin { background: #f59e0b; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
-      .btn { background: #2563eb; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
-      .btn:hover { background: #1d4ed8; }
-      .btn-admin { background: #d97706; }
-      .btn-admin:hover { background: #b45309; }
-      .btn-profile { background: #8b5cf6; }
-      .btn-profile:hover { background: #7c3aed; }
-      .btn-danger { background: #ef4444; }
-      .btn-sm { padding: 4px 8px; font-size: 12px; }
-      .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
-      .categories { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; }
-      .cat-btn { background: #334155; color: white; padding: 10px 20px; border-radius: 20px; border: none; cursor: pointer; }
-      .cat-btn.active { background: #38bdf8; color: #0f172a; font-weight: bold; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
-      .card { background: #1e293b; border-radius: 10px; overflow: hidden; border: 1px solid #334155; }
-      .card img { width: 100%; height: 160px; object-fit: cover; }
-      .card-body { padding: 15px; }
-      .price { color: #4ade80; font-size: 18px; font-weight: bold; margin: 10px 0; }
-      .status { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 10px; }
-      .status-available { background: #166534; color: #86efac; }
-      .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; padding: 10px; }
-      .modal-content { background: #1e293b; padding: 25px; border-radius: 10px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; }
-      .modal-content input, .modal-content select { width: 100%; padding: 10px; margin: 8px 0; border-radius: 5px; border: 1px solid #334155; background: #0f172a; color: white; }
+      .btn-sm { padding: 5px 10px; font-size: 12px; }
+      .container { max-width: 1200px; margin: 30px auto; padding: 0 15px; }
+      .categories { display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center;}
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+      .card img { width: 100%; height: 180px; object-fit: cover; border-bottom: 2px solid #334155; }
+      .card-body { padding: 20px; }
+      .price { color: #4ade80; font-size: 22px; font-weight: 900; margin: 12px 0; text-shadow: 0 0 10px rgba(74,222,128,0.5); }
+      .status { display: inline-block; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;}
+      .status-available { background: rgba(22, 101, 52, 0.8); color: #86efac; border: 1px solid #4ade80; }
       
-      .profile-tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 1px solid #334155; }
-      .tab-btn { background: transparent; color: #94a3b8; border: none; padding: 8px 12px; cursor: pointer; font-weight: 600; }
-      .tab-btn.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
+      /* Bảng Modal (Bảng Đăng nhập / Hồ sơ) */
+      .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 100; padding: 10px; }
+      .modal-content { background: #1e293b; padding: 30px; border-radius: 16px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; border: 1px solid #38bdf8; box-shadow: 0 0 30px rgba(56,189,248,0.2); }
+      .modal-content h3 { margin-bottom: 20px; text-align: center; color: #38bdf8; font-size: 22px; }
+      .modal-content input, .modal-content select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; transition: 0.3s; }
+      .modal-content input:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.5); }
+      
+      /* Tabs Hồ Sơ */
+      .profile-tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid #334155; }
+      .tab-btn { background: transparent; color: #94a3b8; border: none; padding: 10px 15px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+      .tab-btn:hover { color: white; }
+      .tab-btn.active { color: #38bdf8; border-bottom: 3px solid #38bdf8; }
       .tab-content { display: none; }
-      .tab-content.active { display: block; }
+      .tab-content.active { display: block; animation: fadeIn 0.4s; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       .table-responsive { width: 100%; overflow-x: auto; }
-      table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
-      th, td { padding: 10px; text-align: left; border-bottom: 1px solid #334155; }
-      th { background: #0f172a; color: #38bdf8; }
-      .acc-box { background: #0f172a; padding: 6px; border-radius: 4px; font-family: monospace; font-size: 12px; margin-top: 4px; word-break: break-all; }
-      .rank-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; background: #38bdf8; color: #000; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+      th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+      th { background: rgba(15, 23, 42, 0.5); color: #38bdf8; font-weight: bold; }
+      .acc-box { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 13px; margin-top: 5px; word-break: break-all; border: 1px dashed #475569; }
+      .rank-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 900; background: linear-gradient(45deg, #fbbf24, #d97706); color: #000; box-shadow: 0 0 10px rgba(251,191,36,0.5); }
     </style>
   </head>
   <body>
