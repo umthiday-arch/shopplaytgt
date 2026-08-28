@@ -18,17 +18,17 @@ const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   balance: { type: Number, default: 0 },
-  role: { type: String, default: 'user' } // 'user' hoặc 'admin'
+  role: { type: String, default: 'user' }
 });
 
 const AccountSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  category: { type: String, required: true }, // 'playtogether', 'lienquan', 'freefire', 'random'
+  category: { type: String, required: true }, 
   price: { type: Number, required: true },
-  accUser: { type: String, required: true }, // Tài khoản game bàn giao
-  accPass: { type: String, required: true }, // Mật khẩu game bàn giao
+  accUser: { type: String, required: true }, 
+  accPass: { type: String, required: true }, 
   image: { type: String, default: 'https://via.placeholder.com/300x180?text=Acc+Game' },
-  status: { type: String, default: 'available' }, // 'available' (còn hàng) hoặc 'sold' (đã bán)
+  status: { type: String, default: 'available' }, 
   buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
 });
 
@@ -46,11 +46,10 @@ app.post('/api/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Mặc định tất cả mọi người đăng ký đều là 'user' thường
     const newUser = new User({ 
       username, 
       password: hashedPassword, 
-      balance: 100000, // Tặng 100k trải nghiệm
+      balance: 100000, 
       role: 'user'
     });
 
@@ -134,7 +133,6 @@ app.post('/api/deposit', async (req, res) => {
   }
 });
 
-// API Admin Thêm Acc Game Mới (Chỉ tài khoản role = 'admin' mới gọi được)
 app.post('/api/admin/add-account', async (req, res) => {
   try {
     const { userId, title, category, price, accUser, accPass, image } = req.body;
@@ -184,7 +182,6 @@ app.get('/', (req, res) => {
       .price { color: #4ade80; font-size: 18px; font-weight: bold; margin: 10px 0; }
       .status { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 10px; }
       .status-available { background: #166534; color: #86efac; }
-      .status-sold { background: #991b1b; color: #fca5a5; }
       .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 100; }
       .modal-content { background: #1e293b; padding: 25px; border-radius: 10px; width: 340px; }
       .modal-content input, .modal-content select { width: 100%; padding: 10px; margin: 8px 0; border-radius: 5px; border: 1px solid #334155; background: #0f172a; color: white; }
@@ -283,26 +280,26 @@ app.get('/', (req, res) => {
       function renderAccounts(category) {
         const grid = document.getElementById('accountGrid');
         grid.innerHTML = '';
-        const filtered = category === 'all' ? allAccounts : allAccounts.filter(a => a.category === category);
+
+        // TỰ ĐỘNG LỌC BỎ CÁC ACC ĐÃ BÁN (status === 'sold')
+        const availableAccounts = allAccounts.filter(a => a.status !== 'sold');
+        const filtered = category === 'all' ? availableAccounts : availableAccounts.filter(a => a.category === category);
 
         if(filtered.length === 0) {
-          grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 40px 0;">Chưa có Acc nào trong danh mục này.</p>';
+          grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #94a3b8; padding: 40px 0;">Hiện chưa có Acc nào khả dụng trong danh mục này.</p>';
           return;
         }
 
         filtered.forEach(acc => {
-          const isSold = acc.status === 'sold';
           grid.innerHTML += \`
             <div class="card">
               <img src="\${acc.image}" alt="Acc Game">
               <div class="card-body">
-                <span class="status \${isSold ? 'status-sold' : 'status-available'}">
-                  \${isSold ? 'ĐÃ BÁN' : 'CÒN HÀNG'}
-                </span>
+                <span class="status status-available">SẴN HÀNG</span>
                 <h4>\${acc.title}</h4>
                 <div class="price">\${acc.price.toLocaleString()} VNĐ</div>
-                <button class="btn" style="width:100%" \${isSold ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} onclick="buyAccount('\${acc._id}')">
-                  \${isSold ? 'Hết Hàng' : 'Mua Ngay'}
+                <button class="btn" style="width:100%" onclick="buyAccount('\${acc._id}')">
+                  Mua Ngay
                 </button>
               </div>
             </div>
@@ -369,7 +366,7 @@ app.get('/', (req, res) => {
           currentUser.balance = data.newBalance;
           localStorage.setItem('user', JSON.stringify(currentUser));
           updateHeader();
-          fetchAccounts();
+          fetchAccounts(); // Tải lại danh sách, Acc vừa mua sẽ lập tức biến mất
         } else {
           alert(data.message);
         }
