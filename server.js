@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 
@@ -15,6 +16,15 @@ app.use(express.urlencoded({ extended: true }));
 
 // Chống NoSQL Injection (tự động lọc bỏ các ký tự độc hại như $, . trong request body/query)
 app.use(mongoSanitize());
+
+// BẢO MẬT MỚI: Giới hạn số lần gọi API Đăng nhập/Đăng ký để chống tool dò mật khẩu (Brute-force)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // Khoảng thời gian: 15 phút
+  max: 10, // Tối đa 10 lần thử từ 1 IP trong 15 phút
+  message: { success: false, message: 'Bạn đã thử quá nhiều lần từ IP này. Vui lòng thử lại sau 15 phút!' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Khóa bí mật JWT
 const JWT_SECRET = process.env.JWT_SECRET || "shopplaytgt_super_secret_key_2026";
@@ -68,8 +78,8 @@ function verifyToken(req, res, next) {
   });
 }
 
-// 2. API Đăng Ký & Đăng Nhập
-app.post('/api/register', async (req, res) => {
+// 2. API Đăng Ký & Đăng Nhập (Đã tích hợp chống Brute-force qua authLimiter)
+app.post('/api/register', authLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ success: false, message: 'Vui lòng điền đầy đủ thông tin!' });
@@ -87,7 +97,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await User.findOne({ username });
@@ -133,13 +143,11 @@ app.post('/api/buy', verifyToken, async (req, res) => {
   try {
     const { accId } = req.body;
     
-    // Kiểm tra xem acc có tồn tại và chưa bán không
     const account = await GameAccount.findOne({ _id: accId, status: 'available' });
     if (!account) {
       return res.status(400).json({ success: false, message: 'Acc này đã được bán hoặc không tồn tại!' });
     }
 
-    // Dùng findOneAndUpdate với điều kiện số dư >= giá tiền để trừ tiền nguyên tử (Atomic), chặn hoàn toàn tool spam mua đồng thời
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.user.id, balance: { $gte: account.price } },
       { $inc: { balance: -account.price } },
@@ -267,7 +275,7 @@ app.post('/api/admin/users/delete', verifyToken, async (req, res) => {
   }
 });
 
-// 6. Giao diện Web (Frontend có hiệu ứng tuyết rơi + chống XSS)
+// 6. Giao diện Web (Frontend giữ nguyên vẹn)
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
@@ -281,7 +289,7 @@ app.get('/', (req, res) => {
       
       body { 
         background-color: #0f172a; 
-        background-image: url('https://i.pinimg.com/originals/a1/1a/32/a11a3291559d29e35772f31d904db507.jpg'); 
+        background-image: url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop'); 
         background-size: cover;
         background-attachment: fixed;
         background-position: center;
@@ -296,7 +304,7 @@ app.get('/', (req, res) => {
         left: 0;
         width: 100%;
         height: 100%;
-        pointer-events: none; /* Giúp click xuyên qua các hạt tuyết */
+        pointer-events: none;
         z-index: 999;
         overflow: hidden;
       }
@@ -441,7 +449,6 @@ app.get('/', (req, res) => {
         </div>
 
         <div class="recharge-right">
-            <!-- NHỚ THAY ĐƯỜNG LINK VIDEO YOUTUBE CỦA BẠN VÀO DƯỚI ĐÂY NHÉ -->
             <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1" allowfullscreen></iframe>
         </div>
     </div>
@@ -605,9 +612,7 @@ app.get('/', (req, res) => {
                 <th style="padding: 10px;">Thao tác</th>
               </tr>
             </thead>
-            <tbody id="userListBody">
-              <!-- JS tự động tải dữ liệu vào đây -->
-            </tbody>
+            <tbody id="userListBody"></tbody>
           </table>
         </div>
         <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('adminUsersModal')">Đóng lại</button>
@@ -619,20 +624,18 @@ app.get('/', (req, res) => {
       let currentUser = null;
       let allAccounts = [];
 
-      // Hàm tạo hiệu ứng tuyết rơi tự động
       function initSnowEffect() {
         const snowContainer = document.getElementById('snow-container');
-        const numberOfSnowflakes = 45; // Số lượng hạt tuyết vừa phải cho mượt mà
+        const numberOfSnowflakes = 45;
 
         for (let i = 0; i < numberOfSnowflakes; i++) {
           const snowflake = document.createElement('div');
           snowflake.classList.add('snowflake');
 
-          // Thiết lập ngẫu nhiên kích thước, vị trí và tốc độ rơi
-          const size = Math.random() * 4 + 2; // Kích thước từ 2px đến 6px
-          const left = Math.random() * 100;    // Vị trí ngang từ 0% đến 100%
-          const duration = Math.random() * 6 + 4; // Thời gian rơi từ 4s đến 10s
-          const delay = Math.random() * 5;    // Thời gian trễ khởi tạo
+          const size = Math.random() * 4 + 2;
+          const left = Math.random() * 100;
+          const duration = Math.random() * 6 + 4;
+          const delay = Math.random() * 5;
 
           snowflake.style.width = \`\${size}px\`;
           snowflake.style.height = \`\${size}px\`;
@@ -645,10 +648,8 @@ app.get('/', (req, res) => {
         }
       }
 
-      // Gọi hàm chạy hiệu ứng tuyết ngay khi load trang
       initSnowEffect();
 
-      // Hàm chuyển đổi ký tự đặc biệt để chống XSS tuyệt đối
       function escapeHtml(str) {
         return String(str)
           .replace(/&/g, '&amp;')
@@ -885,7 +886,6 @@ app.get('/', (req, res) => {
         btn.classList.add('active');
       }
 
-      // HÀM CHUYỂN TAB DÀNH RIÊNG CHO KHUNG NẠP THẺ (KHÔNG ẢNH HƯỞNG ĐẾN PROFILE MODAL)
       function switchRechargeTab(evt, tabId) {
           let tabContents = document.getElementsByClassName("r-tab-content");
           for (let i = 0; i < tabContents.length; i++) {
@@ -951,7 +951,6 @@ app.get('/', (req, res) => {
         }
       }
 
-      // Hàm Quản lý User (Admin) đã được bảo vệ chống mã độc XSS
       async function openAdminUsers() {
         openModal('adminUsersModal');
         const tbody = document.getElementById('userListBody');
@@ -968,8 +967,6 @@ app.get('/', (req, res) => {
             var isUser = user.role === 'user' ? 'selected' : '';
             var isAdmin = user.role === 'admin' ? 'selected' : '';
             var balance = user.balance || 0;
-            
-            // Lọc chuỗi username để chặn hoàn toàn mã độc XSS
             var safeUsername = escapeHtml(user.username);
             
             tbody.innerHTML += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">' +
@@ -1032,11 +1029,9 @@ app.get('/', (req, res) => {
       fetchAccounts();
     </script>
 
-    <!-- CHÂN TRANG (FOOTER) KÈM LOGO & HỖ TRỢ -->
     <footer style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 40px 20px 20px; margin-top: 50px; font-size: 14px; position: relative; z-index: 2;">
       <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px;">
         
-        <!-- Cột 1: Thông tin Shop -->
         <div>
           <div class="logo" style="margin-bottom: 12px; font-size: 20px;">🎮 SHOP GAME VIP</div>
           <p style="line-height: 1.6; margin-bottom: 15px;">Hệ thống chuyên cung cấp tài khoản game uy tín, giao dịch tự động nhanh chóng và bảo mật 24/7.</p>
@@ -1046,34 +1041,29 @@ app.get('/', (req, res) => {
           </div>
         </div>
         
-        <!-- Cột 2: Hỗ trợ khách hàng -->
         <div>
           <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">HỖ TRỢ KHÁCH HÀNG</h4>
           <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px;">
-            <li><a href="javascript:void(0)" onclick="openModal('guideModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">📖 Hướng dẫn mua hàng / Nạp tiền</a></li>
-            <li><a href="javascript:void(0)" onclick="openModal('warrantyModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">🛡️ Chính sách bảo hành tài khoản</a></li>
-            <li><a href="javascript:void(0)" onclick="openModal('checkModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">🔍 Kiểm tra tình trạng đơn hàng</a></li>
+            <li><a href="javascript:void(0)" onclick="openModal('guideModal')" style="color: #94a3b8; text-decoration: none;">📖 Hướng dẫn mua hàng / Nạp tiền</a></li>
+            <li><a href="javascript:void(0)" onclick="openModal('warrantyModal')" style="color: #94a3b8; text-decoration: none;">🛡️ Chính sách bảo hành tài khoản</a></li>
+            <li><a href="javascript:void(0)" onclick="openModal('checkModal')" style="color: #94a3b8; text-decoration: none;">🔍 Kiểm tra tình trạng đơn hàng</a></li>
           </ul>
         </div>
 
-        <!-- Cột 3: Kết nối & Thanh toán -->
         <div>
           <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">KẾT NỐI VỚI CHÚNG TÔI</h4>
           <p style="margin-bottom: 10px;">Hotline / Zalo: <strong style="color: #38bdf8;">0123.456.789</strong></p>
           <p style="margin-bottom: 15px;">Fanpage hỗ trợ: <a href="#" style="color: #38bdf8; text-decoration: none;">fb.com/shopgamevip</a></p>
           
           <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-            <!-- MoMo -->
             <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
               <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-MoMo-Square.png" alt="MoMo" style="width: 35px; height: 35px; object-fit: contain; margin-bottom: 6px;">
               <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">MoMo</span>
             </div>
-            <!-- Napas -->
             <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
               <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-Napas.png" alt="Napas" style="width: 50px; height: 25px; object-fit: contain; margin-bottom: 10px; margin-top: 6px;">
               <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Napas</span>
             </div>
-            <!-- Thẻ cào -->
             <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px;">
               <div style="display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: center; margin-bottom: 4px;">
                 <span style="font-size: 9px; background: #e11d48; color: white; padding: 1px 3px; border-radius: 3px; font-weight: bold;">Viettel</span>
@@ -1097,7 +1087,6 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Khởi động server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
