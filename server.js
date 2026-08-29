@@ -736,15 +736,34 @@ app.get('/', (req, res) => {
           </ul>
         </div>
 
-        <!-- Cột 3: Kết nối với chúng tôi -->
+        <!-- Cột 3: Kết nối với chúng tôi (ĐÃ ĐƯỢC GẮN LOGO MỚI) -->
         <div>
           <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">KẾT NỐI VỚI CHÚNG TÔI</h4>
           <p style="margin-bottom: 10px;">Hotline / Zalo: <strong style="color: #38bdf8;">0123.456.789</strong></p>
           <p style="margin-bottom: 15px;">Fanpage hỗ trợ: <a href="#" style="color: #38bdf8; text-decoration: none;">fb.com/shopcuaban</a></p>
-          <div style="display: flex; gap: 10px; font-size: 12px;">
-            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; color: #fff;">Momo</span>
-            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; color: #fff;">ATM Banking</span>
-            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; color: #fff;">Thẻ Cào</span>
+          
+          <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+            <!-- Khối Logo MoMo -->
+            <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
+              <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" alt="MoMo" style="width: 35px; height: 35px; object-fit: contain; margin-bottom: 6px;">
+              <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">MoMo</span>
+            </div>
+
+            <!-- Khối Logo Napas (ATM) -->
+            <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/Logo_Napas.png/320px-Logo_Napas.png" alt="Napas" style="width: 50px; height: 25px; object-fit: contain; margin-bottom: 10px; margin-top: 6px;">
+              <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Napas</span>
+            </div>
+
+            <!-- Khối Logo Thẻ Cào -->
+            <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
+              <div style="display: flex; gap: 4px; margin-bottom: 6px; margin-top: 5px;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Viettel_logo_2021.svg/320px-Viettel_logo_2021.svg.png" alt="Viettel" style="width: 18px; height: 18px; object-fit: contain;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Vinaphone_logo.svg/320px-Vinaphone_logo.svg.png" alt="Vinaphone" style="width: 18px; height: 18px; object-fit: contain;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Mobifone_logo.svg/320px-Mobifone_logo.svg.png" alt="Mobifone" style="width: 18px; height: 18px; object-fit: contain;">
+              </div>
+              <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Thẻ Cào</span>
+            </div>
           </div>
         </div>
 
