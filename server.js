@@ -289,7 +289,7 @@ app.get('/', (req, res) => {
       
       body { 
         background-color: #0f172a; 
-        background-image: url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop'); 
+        background-image: url('https://i.pinimg.com/originals/a1/1a/32/a11a3291559d29e35772f31d904db507.jpg'); 
         background-size: cover;
         background-attachment: fixed;
         background-position: center;
