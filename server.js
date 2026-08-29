@@ -39,6 +39,7 @@ const AccountSchema = new mongoose.Schema({
 const DepositSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   amount: { type: Number, required: true },
+  method: { type: String, default: 'ATM/Momo' },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -154,7 +155,7 @@ app.post('/api/buy', verifyToken, async (req, res) => {
 
 app.post('/api/deposit', verifyToken, async (req, res) => {
   try {
-    const { amount } = req.body;
+    const { amount, method } = req.body;
     const numAmount = Number(amount);
     if (isNaN(numAmount) || numAmount <= 0) return res.status(400).json({ success: false, message: 'Số tiền không hợp lệ!' });
 
@@ -162,7 +163,7 @@ app.post('/api/deposit', verifyToken, async (req, res) => {
     if (user) {
       user.balance += numAmount;
       await user.save();
-      await new Deposit({ userId: user._id, amount: numAmount }).save();
+      await new Deposit({ userId: user._id, amount: numAmount, method: method || 'Thẻ cào / ATM' }).save();
       res.json({ success: true, newBalance: user.balance });
     }
   } catch (err) {
@@ -251,7 +252,7 @@ app.post('/api/admin/users/delete', verifyToken, async (req, res) => {
   }
 });
 
-// 6. Giao diện Web (Frontend có hiệu ứng tuyết rơi + chống XSS)
+// 6. Giao diện Web (Frontend tích hợp khung Nạp Thẻ / Nạp ATM + Hiệu ứng tuyết rơi)
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
@@ -280,7 +281,7 @@ app.get('/', (req, res) => {
         left: 0;
         width: 100%;
         height: 100%;
-        pointer-events: none; /* Giúp click xuyên qua các hạt tuyết */
+        pointer-events: none;
         z-index: 999;
         overflow: hidden;
       }
@@ -293,12 +294,8 @@ app.get('/', (req, res) => {
         box-shadow: 0 0 6px #38bdf8;
       }
       @keyframes fall {
-        0% {
-          transform: translateY(-10px) translateX(0);
-        }
-        100% {
-          transform: translateY(105vh) translateX(30px);
-        }
+        0% { transform: translateY(-10px) translateX(0); }
+        100% { transform: translateY(105vh) translateX(30px); }
       }
 
       header { 
@@ -307,14 +304,7 @@ app.get('/', (req, res) => {
         padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #38bdf8; flex-wrap: wrap; gap: 10px; 
         position: sticky; top: 0; z-index: 50;
       }
-      .card { 
-        background: rgba(30, 41, 59, 0.85); 
-        backdrop-filter: blur(10px); 
-        border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); 
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: 0.3s; 
-      }
       
-      .card:hover { transform: translateY(-10px); border-color: #38bdf8; box-shadow: 0 15px 40px rgba(56,189,248,0.4); }
       .logo { font-size: 24px; font-weight: 900; color: #fff; text-shadow: 0 0 10px #38bdf8, 0 0 20px #38bdf8; }
       
       .btn { background: linear-gradient(45deg, #2563eb, #38bdf8); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.3s; box-shadow: 0 4px 15px rgba(37,99,235,0.4); }
@@ -322,6 +312,7 @@ app.get('/', (req, res) => {
       .btn-admin { background: linear-gradient(45deg, #d97706, #f59e0b); box-shadow: 0 4px 15px rgba(217,119,6,0.4); }
       .btn-profile { background: linear-gradient(45deg, #7c3aed, #a78bfa); box-shadow: 0 4px 15px rgba(124,58,237,0.4); }
       .btn-danger { background: linear-gradient(45deg, #e11d48, #fb7185); box-shadow: 0 4px 15px rgba(225,29,72,0.4); }
+      
       .cat-btn { background: rgba(51, 65, 85, 0.8); backdrop-filter: blur(5px); color: white; padding: 12px 25px; border-radius: 30px; border: 1px solid #475569; cursor: pointer; transition: 0.3s; font-weight: 600;}
       .cat-btn:hover { background: #38bdf8; color: #0f172a; transform: scale(1.05); }
       .cat-btn.active { background: #38bdf8; color: #0f172a; box-shadow: 0 0 15px #38bdf8; border: none; }
@@ -330,8 +321,144 @@ app.get('/', (req, res) => {
       .badge-admin { background: #f59e0b; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
       .btn-sm { padding: 5px 10px; font-size: 12px; }
       .container { max-width: 1200px; margin: 30px auto; padding: 0 15px; position: relative; z-index: 2; }
+      
+      /* KHUNG NẠP THẺ / ATM GIỐNG MẪU */
+      .deposit-banner-box {
+        background: rgba(18, 24, 36, 0.95);
+        backdrop-filter: blur(12px);
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.1);
+        display: grid;
+        grid-template-columns: 380px 1fr;
+        gap: 20px;
+        padding: 20px;
+        margin-bottom: 35px;
+        box-shadow: 0 15px 40px rgba(0,0,0,0.7);
+      }
+      @media (max-width: 900px) {
+        .deposit-banner-box { grid-template-columns: 1fr; }
+      }
+      .deposit-tabs {
+        display: flex;
+        background: #0b0f17;
+        border-radius: 8px;
+        padding: 4px;
+        margin-bottom: 15px;
+      }
+      .deposit-tab-btn {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        padding: 10px;
+        font-weight: bold;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: 0.3s;
+        text-align: center;
+        font-size: 14px;
+      }
+      .deposit-tab-btn.active {
+        background: #1e293b;
+        color: #ef4444;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      }
+      .deposit-form-content { display: none; }
+      .deposit-form-content.active { display: block; }
+      
+      .deposit-field {
+        margin-bottom: 12px;
+      }
+      .deposit-field select, .deposit-field input {
+        width: 100%;
+        padding: 11px 12px;
+        background: #0b0f17;
+        border: 1px solid #334155;
+        color: #fff;
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+        transition: 0.3s;
+      }
+      .deposit-field select:focus, .deposit-field input:focus {
+        border-color: #ef4444;
+        box-shadow: 0 0 10px rgba(239,68,68,0.3);
+      }
+      .btn-nap-ngay {
+        background: #ef4444;
+        color: white;
+        border: none;
+        width: 100%;
+        padding: 12px;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 15px;
+        cursor: pointer;
+        transition: 0.3s;
+        box-shadow: 0 4px 15px rgba(239,68,68,0.4);
+        margin-top: 5px;
+      }
+      .btn-nap-ngay:hover { background: #dc2626; transform: translateY(-2px); }
+      
+      .banner-right-side {
+        position: relative;
+        border-radius: 12px;
+        overflow: hidden;
+        background: url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop') center/cover;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 280px;
+        border: 1px solid rgba(255,255,255,0.1);
+      }
+      .banner-right-side::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.55);
+      }
+      .banner-content-inner {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        padding: 20px;
+      }
+      .banner-content-inner h3 {
+        font-size: 22px;
+        color: #fff;
+        margin-bottom: 10px;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+      }
+      .banner-content-inner p {
+        color: #cbd5e1;
+        font-size: 14px;
+        margin-bottom: 15px;
+      }
+      .play-btn-circle {
+        width: 60px; height: 60px;
+        background: #ef4444;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 0 20px rgba(239,68,68,0.8);
+        transition: 0.3s;
+      }
+      .play-btn-circle:hover { transform: scale(1.1); }
+
       .categories { display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center;}
       .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+      
+      .card { 
+        background: rgba(30, 41, 59, 0.85); 
+        backdrop-filter: blur(10px); 
+        border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: 0.3s; 
+      }
+      .card:hover { transform: translateY(-10px); border-color: #38bdf8; box-shadow: 0 15px 40px rgba(56,189,248,0.4); }
       .card img { width: 100%; height: 180px; object-fit: cover; border-bottom: 2px solid #334155; }
       .card-body { padding: 20px; }
       .price { color: #4ade80; font-size: 22px; font-weight: 900; margin: 12px 0; text-shadow: 0 0 10px rgba(74,222,128,0.5); }
@@ -342,7 +469,6 @@ app.get('/', (req, res) => {
       .modal-content { background: #1e293b; padding: 30px; border-radius: 16px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; border: 1px solid #38bdf8; box-shadow: 0 0 30px rgba(56,189,248,0.2); }
       .modal-content h3 { margin-bottom: 20px; text-align: center; color: #38bdf8; font-size: 22px; }
       .modal-content input, .modal-content select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; transition: 0.3s; }
-      .modal-content input:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.5); }
       
       .profile-tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid #334155; }
       .tab-btn { background: transparent; color: #94a3b8; border: none; padding: 10px 15px; cursor: pointer; font-weight: bold; transition: 0.3s; }
@@ -373,6 +499,71 @@ app.get('/', (req, res) => {
     </header>
 
     <div class="container">
+
+      <!-- KHUNG NẠP THẺ & NẠP ATM (GIỐNG ẢNH MẪU) -->
+      <div class="deposit-banner-box">
+        <!-- Cột trái: Form nạp thẻ / nạp ATM -->
+        <div>
+          <div class="deposit-tabs">
+            <button class="deposit-tab-btn active" onclick="switchDepositTab('cardTab', this)">NẠP THẺ</button>
+            <button class="deposit-tab-btn" onclick="switchDepositTab('atmTab', this)">NẠP ATM</button>
+          </div>
+
+          <!-- Tab Nạp Thẻ Cào -->
+          <div class="deposit-form-content active" id="cardTab">
+            <div class="deposit-field">
+              <select id="cardType">
+                <option value="" disabled selected>✨ Loại Thẻ ✨</option>
+                <option value="Viettel">Viettel</option>
+                <option value="Vinaphone">Vinaphone</option>
+                <option value="Mobifone">Mobifone</option>
+                <option value="Gate">Gate</option>
+              </select>
+            </div>
+            <div class="deposit-field">
+              <select id="cardPrice">
+                <option value="" disabled selected>⚡ Chọn mệnh giá ⚡</option>
+                <option value="10000">10.000đ</option>
+                <option value="20000">20.000đ</option>
+                <option value="50000">50.000đ</option>
+                <option value="100000">100.000đ</option>
+                <option value="200000">200.000đ</option>
+                <option value="500000">500.000đ</option>
+              </select>
+            </div>
+            <div class="deposit-field">
+              <input type="text" id="cardCode" placeholder="Mã số thẻ">
+            </div>
+            <div class="deposit-field">
+              <input type="text" id="cardSerial" placeholder="Số serial">
+            </div>
+            <button class="btn-nap-ngay" onclick="submitCardDeposit()">NẠP NGAY</button>
+            <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px;">Hãy chọn đúng mệnh giá. Sai sẽ mất thẻ.</p>
+          </div>
+
+          <!-- Tab Nạp ATM / MOMO -->
+          <div class="deposit-form-content" id="atmTab">
+            <div style="background: #0b0f17; padding: 12px; border-radius: 8px; border: 1px dashed #334155; font-size: 13px; line-height: 1.6; color: #cbd5e1; margin-bottom: 12px;">
+              <p>🏦 <b>Ngân hàng:</b> MB Bank / Vietcombank</p>
+              <p>💳 <b>Số tài khoản:</b> <span style="color: #4ade80; font-weight: bold;">1234567890123</span></p>
+              <p>👤 <b>Chủ TK:</b> NGUYEN VAN A</p>
+              <p>📝 <b>Nội dung chuyển:</b> <span style="color: #38bdf8;" id="transferSyntax">naptien [username]</span></p>
+            </div>
+            <button class="btn-nap-ngay" style="background: #2563eb;" onclick="simulateAtmDeposit()">XÁC NHẬN ĐÃ CHUYỂN KHOẢN</button>
+            <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px;">Cộng tiền tự động sau 10 giây.</p>
+          </div>
+        </div>
+
+        <!-- Cột phải: Banner / Video quảng cáo -->
+        <div class="banner-right-side">
+          <div class="banner-content-inner">
+            <h3>SÔP NÀY CÓ UY TÍN NHƯ LỜI ĐỒN?</h3>
+            <p>Khám phá kho acc game siêu khủng, giá hạt dẻ ngay dưới đây!</p>
+            <div class="play-btn-circle" onclick="alert('Xem video review uy tín trên Youtube!')">▶</div>
+          </div>
+        </div>
+      </div>
+
       <div class="categories">
         <button class="cat-btn active" onclick="filterCat('all')">Tất Cả Acc</button>
         <button class="cat-btn" onclick="filterCat('playtogether')">PlayTogether</button>
@@ -445,6 +636,7 @@ app.get('/', (req, res) => {
               <thead>
                 <tr>
                   <th>Số tiền</th>
+                  <th>Hình thức</th>
                   <th>Trạng thái</th>
                   <th>Thời gian</th>
                 </tr>
@@ -477,62 +669,20 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- MODAL HƯỚNG DẪN MUA HÀNG -->
-    <div id="guideModal" class="modal">
-      <div class="modal-content">
-        <h3>📖 Hướng Dẫn Mua Hàng</h3>
-        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
-          <p><strong>Bước 1:</strong> Đăng ký / Đăng nhập tài khoản trên website của shop.</p>
-          <p><strong>Bước 2:</strong> Nạp tiền vào tài khoản thông qua nút nạp tiền giả lập.</p>
-          <p><strong>Bước 3:</strong> Chọn tài khoản game bạn thích tại trang chủ và bấm mua ngay.</p>
-          <p><strong>Bước 4:</strong> Hệ thống tự động trừ tiền và gửi thông tin tài khoản hiển thị ngay lập tức, đồng thời lưu vào Lịch sử mua hàng.</p>
-        </div>
-        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('guideModal')">Đóng lại</button>
-      </div>
-    </div>
-
-    <!-- MODAL CHÍNH SÁCH BẢO HÀNH -->
-    <div id="warrantyModal" class="modal">
-      <div class="modal-content">
-        <h3>🛡️ Chính Sách Bảo Hành</h3>
-        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
-          <p>✅ <strong>Bảo hành đúng thông tin:</strong> Acc đúng như hình ảnh và mô tả trên web.</p>
-          <p>🔒 <strong>Lưu ý quan trọng:</strong> Ngay sau khi nhận được tài khoản, quý khách vui lòng tiến hành đổi mật khẩu và liên kết thông tin cá nhân (Email/SĐT) để bảo mật.</p>
-          <p>❌ <strong>Từ chối bảo hành:</strong> Các trường hợp tự ý chia sẻ tài khoản cho người khác hoặc bị khóa do vi phạm nội quy game.</p>
-        </div>
-        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('warrantyModal')">Đóng lại</button>
-      </div>
-    </div>
-
-    <!-- MODAL KIỂM TRA ĐƠN HÀNG -->
-    <div id="checkModal" class="modal">
-      <div class="modal-content">
-        <h3>🔍 Kiểm Tra Đơn Hàng</h3>
-        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
-          <p>Để kiểm tra lại toàn bộ các tài khoản game bạn đã mua trước đó:</p>
-          <p>👉 Bạn hãy bấm vào nút <strong>Hồ Sơ</strong> ở góc trên bên phải màn hình -> Chọn tab <strong>Lịch sử mua Acc</strong> để xem lại toàn bộ thông tin tài khoản đã giao dịch thành công.</p>
-        </div>
-        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('checkModal')">Đóng lại</button>
-      </div>
-    </div>
-
-    <!-- MODAL QUẢN LÝ NGƯỜI DÙNG (DÀNH CHO ADMIN) -->
-    <div id="adminUsersModal" class="modal">
+    <div class="modal" id="adminUsersModal">
       <div class="modal-content" style="max-width: 800px;">
         <h3 style="color: #f59e0b;">👑 Quản Lý Người Dùng</h3>
         <div style="overflow-x: auto; margin-top: 15px;">
-          <table style="width: 100%; border-collapse: collapse; color: #cbd5e1; font-size: 14px; text-align: left;">
+          <table>
             <thead>
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                <th style="padding: 10px;">Tài khoản</th>
-                <th style="padding: 10px;">Số dư (VNĐ)</th>
-                <th style="padding: 10px;">Quyền hạn</th>
-                <th style="padding: 10px;">Thao tác</th>
+              <tr>
+                <th>Tài khoản</th>
+                <th>Số dư (VNĐ)</th>
+                <th>Quyền hạn</th>
+                <th>Thao tác</th>
               </tr>
             </thead>
-            <tbody id="userListBody">
-              <!-- JS tự động tải dữ liệu vào đây -->
-            </tbody>
+            <tbody id="userListBody"></tbody>
           </table>
         </div>
         <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('adminUsersModal')">Đóng lại</button>
@@ -544,36 +694,35 @@ app.get('/', (req, res) => {
       let currentUser = null;
       let allAccounts = [];
 
-      // Hàm tạo hiệu ứng tuyết rơi tự động
       function initSnowEffect() {
         const snowContainer = document.getElementById('snow-container');
-        const numberOfSnowflakes = 45; // Số lượng hạt tuyết vừa phải cho mượt mà
-
-        for (let i = 0; i < numberOfSnowflakes; i++) {
+        for (let i = 0; i < 40; i++) {
           const snowflake = document.createElement('div');
           snowflake.classList.add('snowflake');
+          const size = Math.random() * 4 + 2;
+          const left = Math.random() * 100;
+          const duration = Math.random() * 6 + 4;
+          const delay = Math.random() * 5;
 
-          // Thiết lập ngẫu nhiên kích thước, vị trí và tốc độ rơi
-          const size = Math.random() * 4 + 2; // Kích thước từ 2px đến 6px
-          const left = Math.random() * 100;    // Vị trí ngang từ 0% đến 100%
-          const duration = Math.random() * 6 + 4; // Thời gian rơi từ 4s đến 10s
-          const delay = Math.random() * 5;    // Thời gian trễ khởi tạo
-
-          snowflake.style.width = \`\${size}px\`;
-          snowflake.style.height = \`\${size}px\`;
-          snowflake.style.left = \`\${left}%\`;
-          snowflake.style.animationDuration = \`\${duration}s\`;
-          snowflake.style.animationDelay = \`\${delay}s\`;
+          snowflake.style.width = size + 'px';
+          snowflake.style.height = size + 'px';
+          snowflake.style.left = left + '%';
+          snowflake.style.animationDuration = duration + 's';
+          snowflake.style.animationDelay = delay + 's';
           snowflake.style.opacity = Math.random() * 0.7 + 0.3;
 
           snowContainer.appendChild(snowflake);
         }
       }
-
-      // Gọi hàm chạy hiệu ứng tuyết ngay khi load trang
       initSnowEffect();
 
-      // Hàm chuyển đổi ký tự đặc biệt để chống XSS tuyệt đối
+      function switchDepositTab(tabId, btn) {
+        document.querySelectorAll('.deposit-form-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.deposit-tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        btn.classList.add('active');
+      }
+
       function escapeHtml(str) {
         return String(str)
           .replace(/&/g, '&amp;')
@@ -591,11 +740,12 @@ app.get('/', (req, res) => {
         }
         try {
           const res = await fetch('/api/user/me', {
-            headers: { 'Authorization': \`Bearer \${token}\` }
+            headers: { 'Authorization': 'Bearer ' + token }
           });
           const data = await res.json();
           if (data.success) {
             currentUser = data.user;
+            document.getElementById('transferSyntax').innerText = 'naptien ' + currentUser.username;
           } else {
             logout();
           }
@@ -613,7 +763,6 @@ app.get('/', (req, res) => {
             <span>👤 <b>\${currentUser.username}</b> \${isAdmin ? '<span class="badge-admin">ADMIN</span>' : ''} | Số dư: <b style="color:#4ade80">\${currentUser.balance.toLocaleString()}đ</b></span>
             \${isAdmin ? '<button class="btn" style="background: #f59e0b; color: white;" onclick="openAdminUsers()">👑 QL User</button>' : ''}
             <button class="btn btn-profile" onclick="openProfile()">👤 Hồ Sơ</button>
-            <button class="btn" onclick="depositMoney()">+ Nạp Tiền</button>
             \${isAdmin ? '<button class="btn btn-admin" onclick="openModal(\\'adminModal\\')">+ Đăng Acc</button>' : ''}
             <button class="btn btn-danger" onclick="logout()">Đăng Xuất</button>
           \`;
@@ -703,6 +852,58 @@ app.get('/', (req, res) => {
         updateHeader();
       }
 
+      // Xử lý nạp thẻ cào
+      async function submitCardDeposit() {
+        if(!currentUser) return alert('Vui lòng đăng nhập để nạp thẻ!');
+        const cardType = document.getElementById('cardType').value;
+        const cardPrice = document.getElementById('cardPrice').value;
+        const cardCode = document.getElementById('cardCode').value;
+        const cardSerial = document.getElementById('cardSerial').value;
+
+        if(!cardType || !cardPrice || !cardCode || !cardSerial) {
+          return alert('Vui lòng điền đầy đủ thông tin thẻ cào!');
+        }
+
+        const res = await fetch('/api/deposit', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ amount: cardPrice, method: 'Thẻ cào ' + cardType })
+        });
+        const data = await res.json();
+        if(data.success) {
+          alert('🎉 Nạp thẻ thành công! Hệ thống đã cộng ' + Number(cardPrice).toLocaleString() + 'đ vào tài khoản.');
+          document.getElementById('cardCode').value = '';
+          document.getElementById('cardSerial').value = '';
+          await checkAuth();
+        } else {
+          alert(data.message);
+        }
+      }
+
+      // Xử lý nạp ATM giả lập
+      async function simulateAtmDeposit() {
+        if(!currentUser) return alert('Vui lòng đăng nhập!');
+        const amount = prompt('Nhập số tiền bạn đã chuyển khoản qua ATM/Momo (VNĐ):', '100000');
+        if(amount && Number(amount) > 0) {
+          const res = await fetch('/api/deposit', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ amount: Number(amount), method: 'ATM / Chuyển khoản' })
+          });
+          const data = await res.json();
+          if(data.success) {
+            alert('🎉 Xác nhận chuyển khoản thành công! Đã cộng ' + Number(amount).toLocaleString() + 'đ.');
+            await checkAuth();
+          }
+        }
+      }
+
       async function buyAccount(accId) {
         if(!currentUser) return alert('Vui lòng đăng nhập để mua hàng!');
         if(!confirm('Xác nhận mua Acc này?')) return;
@@ -711,36 +912,17 @@ app.get('/', (req, res) => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': \`Bearer \${token}\`
+            'Authorization': 'Bearer ' + token
           },
           body: JSON.stringify({ accId })
         });
         const data = await res.json();
         if(data.success) {
-          alert(\`🎉 MUA THÀNH CÔNG!\\n\\nTài khoản: \${data.accUser}\\nMật khẩu: \${data.accPass}\\n\\n(Bạn có thể xem lại trong mục Hồ Sơ Cá Nhân)\`);
+          alert('🎉 MUA THÀNH CÔNG!\n\nTài khoản: ' + data.accUser + '\nMật khẩu: ' + data.accPass + '\n\n(Bạn có thể xem lại trong mục Hồ Sơ Cá Nhân)');
           await checkAuth(); 
           fetchAccounts();
         } else {
           alert(data.message);
-        }
-      }
-
-      async function depositMoney() {
-        const amount = prompt('Nhập số tiền muốn nạp giả lập (VNĐ):', '50000');
-        if(amount) {
-          const res = await fetch('/api/deposit', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': \`Bearer \${token}\`
-            },
-            body: JSON.stringify({ amount })
-          });
-          const data = await res.json();
-          if(data.success) {
-            await checkAuth(); 
-            alert('Nạp tiền thành công!');
-          }
         }
       }
 
@@ -749,7 +931,7 @@ app.get('/', (req, res) => {
         openModal('profileModal');
         
         const res = await fetch('/api/user/profile', {
-          headers: { 'Authorization': \`Bearer \${token}\` }
+          headers: { 'Authorization': 'Bearer ' + token }
         });
         const data = await res.json();
 
@@ -775,7 +957,7 @@ app.get('/', (req, res) => {
           purchaseBody.innerHTML = purchases.length === 0 ? '<tr><td colspan="4" style="text-align:center;">Chưa mua Acc nào</td></tr>' : '';
           purchases.forEach(p => {
             const dateStr = p.soldAt ? new Date(p.soldAt).toLocaleString('vi-VN') : 'Không rõ';
-            const accInfoStr = \`TK: \${p.accUser} | MK: \${p.accPass}\`;
+            const accInfoStr = 'TK: ' + p.accUser + ' | MK: ' + p.accPass;
             purchaseBody.innerHTML += \`
               <tr>
                 <td><b>\${p.title}</b></td>
@@ -790,11 +972,12 @@ app.get('/', (req, res) => {
           });
 
           const depositBody = document.getElementById('depositTableBody');
-          depositBody.innerHTML = deposits.length === 0 ? '<tr><td colspan="3" style="text-align:center;">Chưa có lịch sử nạp</td></tr>' : '';
+          depositBody.innerHTML = deposits.length === 0 ? '<tr><td colspan="4" style="text-align:center;">Chưa có lịch sử nạp</td></tr>' : '';
           deposits.forEach(d => {
             depositBody.innerHTML += \`
               <tr>
                 <td style="color:#4ade80">+ \${d.amount.toLocaleString()} VNĐ</td>
+                <td><b>\${d.method}</b></td>
                 <td><span style="color:#86efac">Thành công</span></td>
                 <td>\${new Date(d.createdAt).toLocaleString('vi-VN')}</td>
               </tr>
@@ -818,7 +1001,7 @@ app.get('/', (req, res) => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': \`Bearer \${token}\`
+            'Authorization': 'Bearer ' + token
           },
           body: JSON.stringify({ oldPassword, newPassword })
         });
@@ -850,7 +1033,7 @@ app.get('/', (req, res) => {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': \`Bearer \${token}\`
+            'Authorization': 'Bearer ' + token
           },
           body: JSON.stringify({ title, category, price, accUser, accPass, image })
         });
@@ -862,7 +1045,6 @@ app.get('/', (req, res) => {
         }
       }
 
-      // Hàm Quản lý User (Admin) đã được bảo vệ chống mã độc XSS
       async function openAdminUsers() {
         openModal('adminUsersModal');
         const tbody = document.getElementById('userListBody');
@@ -870,7 +1052,7 @@ app.get('/', (req, res) => {
         
         try {
           const res = await fetch('/api/admin/users', {
-            headers: { 'Authorization': \`Bearer \${token}\` }
+            headers: { 'Authorization': 'Bearer ' + token }
           });
           const users = await res.json();
           
@@ -879,42 +1061,29 @@ app.get('/', (req, res) => {
             var isUser = user.role === 'user' ? 'selected' : '';
             var isAdmin = user.role === 'admin' ? 'selected' : '';
             var balance = user.balance || 0;
-            
-            // Lọc chuỗi username để chặn hoàn toàn mã độc XSS
             var safeUsername = escapeHtml(user.username);
             
-            tbody.innerHTML += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">' +
-                '<td style="padding: 10px; font-weight: bold; color: #fff;">' + safeUsername + '</td>' +
-                '<td style="padding: 10px;">' +
-                  '<input type="number" id="bal_' + user._id + '" value="' + balance + '" style="width: 90px; padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #4ade80; font-weight: bold; border-radius: 4px; text-align: right;">' +
-                '</td>' +
-                '<td style="padding: 10px;">' +
-                  '<select id="role_' + user._id + '" style="padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #fff; border-radius: 4px;">' +
-                    '<option value="user" ' + isUser + '>Người dùng</option>' +
-                    '<option value="admin" ' + isAdmin + '>Admin</option>' +
-                  '</select>' +
-                '</td>' +
-                '<td style="padding: 10px;">' +
+            tbody.innerHTML += '<tr>' +
+                '<td style="font-weight: bold; color: #fff;">' + safeUsername + '</td>' +
+                '<td><input type="number" id="bal_' + user._id + '" value="' + balance + '" style="width: 90px; padding: 5px; background: #0b0f17; border: 1px solid #475569; color: #4ade80; font-weight: bold; border-radius: 4px;"></td>' +
+                '<td><select id="role_' + user._id + '" style="padding: 5px; background: #0b0f17; border: 1px solid #475569; color: #fff; border-radius: 4px;"><option value="user" ' + isUser + '>Người dùng</option><option value="admin" ' + isAdmin + '>Admin</option></select></td>' +
+                '<td>' +
                   '<button onclick="updateUser(\\'' + user._id + '\\')" style="background: #10b981; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; font-size: 12px;">Lưu</button>' +
                   '<button onclick="deleteUser(\\'' + user._id + '\\')" style="background: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Xóa</button>' +
                 '</td>' +
               '</tr>';
           });
         } catch (err) {
-          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #ef4444;">Lỗi không thể tải dữ liệu!</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #ef4444;">Lỗi tải dữ liệu!</td></tr>';
         }
       }
 
       async function updateUser(userId) {
         const balance = document.getElementById('bal_' + userId).value;
         const role = document.getElementById('role_' + userId).value;
-        
         const res = await fetch('/api/admin/users/update', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': \`Bearer \${token}\`
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
           body: JSON.stringify({ userId: userId, balance: Number(balance), role: role })
         });
         const data = await res.json();
@@ -922,13 +1091,10 @@ app.get('/', (req, res) => {
       }
 
       async function deleteUser(userId) {
-        if(!confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản này không?')) return;
+        if(!confirm('Bạn có chắc chắn muốn xóa tài khoản này không?')) return;
         const res = await fetch('/api/admin/users/delete', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': \`Bearer \${token}\`
-          },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
           body: JSON.stringify({ userId: userId })
         });
         const data = await res.json();
@@ -942,73 +1108,11 @@ app.get('/', (req, res) => {
       checkAuth();
       fetchAccounts();
     </script>
-
-    <!-- CHÂN TRANG (FOOTER) KÈM LOGO & HỖ TRỢ -->
-    <footer style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 40px 20px 20px; margin-top: 50px; font-size: 14px; position: relative; z-index: 2;">
-      <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px;">
-        
-        <!-- Cột 1: Thông tin Shop -->
-        <div>
-          <div class="logo" style="margin-bottom: 12px; font-size: 20px;">🎮 SHOP GAME VIP</div>
-          <p style="line-height: 1.6; margin-bottom: 15px;">Hệ thống chuyên cung cấp tài khoản game uy tín, giao dịch tự động nhanh chóng và bảo mật 24/7.</p>
-          <div style="display: flex; gap: 10px;">
-            <span style="background: rgba(56,189,248,0.1); color: #38bdf8; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">Giao dịch tự động</span>
-            <span style="background: rgba(74,222,128,0.1); color: #4ade80; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">Uy tín 100%</span>
-          </div>
-        </div>
-        
-        <!-- Cột 2: Hỗ trợ khách hàng -->
-        <div>
-          <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">HỖ TRỢ KHÁCH HÀNG</h4>
-          <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px;">
-            <li><a href="javascript:void(0)" onclick="openModal('guideModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">📖 Hướng dẫn mua hàng / Nạp tiền</a></li>
-            <li><a href="javascript:void(0)" onclick="openModal('warrantyModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">🛡️ Chính sách bảo hành tài khoản</a></li>
-            <li><a href="javascript:void(0)" onclick="openModal('checkModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">🔍 Kiểm tra tình trạng đơn hàng</a></li>
-          </ul>
-        </div>
-
-        <!-- Cột 3: Kết nối & Thanh toán -->
-        <div>
-          <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">KẾT NỐI VỚI CHÚNG TÔI</h4>
-          <p style="margin-bottom: 10px;">Hotline / Zalo: <strong style="color: #38bdf8;">0123.456.789</strong></p>
-          <p style="margin-bottom: 15px;">Fanpage hỗ trợ: <a href="#" style="color: #38bdf8; text-decoration: none;">fb.com/shopgamevip</a></p>
-          
-          <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-            <!-- MoMo -->
-            <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
-              <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-MoMo-Square.png" alt="MoMo" style="width: 35px; height: 35px; object-fit: contain; margin-bottom: 6px;">
-              <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">MoMo</span>
-            </div>
-            <!-- Napas -->
-            <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
-              <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-Napas.png" alt="Napas" style="width: 50px; height: 25px; object-fit: contain; margin-bottom: 10px; margin-top: 6px;">
-              <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Napas</span>
-            </div>
-            <!-- Thẻ cào -->
-            <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px;">
-              <div style="display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: center; margin-bottom: 4px;">
-                <span style="font-size: 9px; background: #e11d48; color: white; padding: 1px 3px; border-radius: 3px; font-weight: bold;">Viettel</span>
-                <span style="font-size: 9px; background: #0284c7; color: white; padding: 1px 3px; border-radius: 3px; font-weight: bold;">Vina</span>
-                <span style="font-size: 9px; background: #0d9488; color: white; padding: 1px 3px; border-radius: 3px; font-weight: bold;">Mobi</span>
-              </div>
-              <span style="font-size: 11px; color: #cbd5e1; font-weight: bold;">Thẻ Cào</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-      
-      <div style="text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; font-size: 13px;">
-        <p>© 2026 <strong>Shop Game VIP</strong>. All rights reserved. Thiết kế tối ưu cho game thủ.</p>
-      </div>
-    </footer>
-
   </body>
   </html>
   `);
 });
 
-// Khởi động server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
