@@ -251,7 +251,7 @@ app.post('/api/admin/users/delete', verifyToken, async (req, res) => {
   }
 });
 
-// 6. Giao diện Web (Frontend tích hợp an toàn chống XSS)
+// 6. Giao diện Web (Frontend có hiệu ứng tuyết rơi + chống XSS)
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
@@ -270,6 +270,35 @@ app.get('/', (req, res) => {
         background-attachment: fixed;
         background-position: center;
         color: #f8fafc; 
+        position: relative;
+      }
+
+      /* Hiệu ứng tuyết rơi */
+      #snow-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* Giúp click xuyên qua các hạt tuyết */
+        z-index: 999;
+        overflow: hidden;
+      }
+      .snowflake {
+        position: absolute;
+        background: #ffffff;
+        border-radius: 50%;
+        opacity: 0.8;
+        animation: fall linear infinite;
+        box-shadow: 0 0 6px #38bdf8;
+      }
+      @keyframes fall {
+        0% {
+          transform: translateY(-10px) translateX(0);
+        }
+        100% {
+          transform: translateY(105vh) translateX(30px);
+        }
       }
 
       header { 
@@ -300,7 +329,7 @@ app.get('/', (req, res) => {
       .user-info { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .badge-admin { background: #f59e0b; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
       .btn-sm { padding: 5px 10px; font-size: 12px; }
-      .container { max-width: 1200px; margin: 30px auto; padding: 0 15px; }
+      .container { max-width: 1200px; margin: 30px auto; padding: 0 15px; position: relative; z-index: 2; }
       .categories { display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap; justify-content: center;}
       .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
       .card img { width: 100%; height: 180px; object-fit: cover; border-bottom: 2px solid #334155; }
@@ -309,7 +338,7 @@ app.get('/', (req, res) => {
       .status { display: inline-block; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;}
       .status-available { background: rgba(22, 101, 52, 0.8); color: #86efac; border: 1px solid #4ade80; }
       
-      .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 100; padding: 10px; }
+      .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 1000; padding: 10px; }
       .modal-content { background: #1e293b; padding: 30px; border-radius: 16px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; border: 1px solid #38bdf8; box-shadow: 0 0 30px rgba(56,189,248,0.2); }
       .modal-content h3 { margin-bottom: 20px; text-align: center; color: #38bdf8; font-size: 22px; }
       .modal-content input, .modal-content select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; transition: 0.3s; }
@@ -331,6 +360,9 @@ app.get('/', (req, res) => {
     </style>
   </head>
   <body>
+
+    <!-- Khung chứa hiệu ứng tuyết rơi -->
+    <div id="snow-container"></div>
 
     <header>
       <div class="logo">🎮 SHOP GAME VIP</div>
@@ -484,7 +516,7 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- MODAL QUẢN LÝ NGƯỜI DÙNG (DÀNH CHO ADMIN) ĐÃ BẢO VỆ CHỐNG XSS -->
+    <!-- MODAL QUẢN LÝ NGƯỜI DÙNG (DÀNH CHO ADMIN) -->
     <div id="adminUsersModal" class="modal">
       <div class="modal-content" style="max-width: 800px;">
         <h3 style="color: #f59e0b;">👑 Quản Lý Người Dùng</h3>
@@ -511,6 +543,35 @@ app.get('/', (req, res) => {
       let token = localStorage.getItem('token') || null;
       let currentUser = null;
       let allAccounts = [];
+
+      // Hàm tạo hiệu ứng tuyết rơi tự động
+      function initSnowEffect() {
+        const snowContainer = document.getElementById('snow-container');
+        const numberOfSnowflakes = 45; // Số lượng hạt tuyết vừa phải cho mượt mà
+
+        for (let i = 0; i < numberOfSnowflakes; i++) {
+          const snowflake = document.createElement('div');
+          snowflake.classList.add('snowflake');
+
+          // Thiết lập ngẫu nhiên kích thước, vị trí và tốc độ rơi
+          const size = Math.random() * 4 + 2; // Kích thước từ 2px đến 6px
+          const left = Math.random() * 100;    // Vị trí ngang từ 0% đến 100%
+          const duration = Math.random() * 6 + 4; // Thời gian rơi từ 4s đến 10s
+          const delay = Math.random() * 5;    // Thời gian trễ khởi tạo
+
+          snowflake.style.width = \`\${size}px\`;
+          snowflake.style.height = \`\${size}px\`;
+          snowflake.style.left = \`\${left}%\`;
+          snowflake.style.animationDuration = \`\${duration}s\`;
+          snowflake.style.animationDelay = \`\${delay}s\`;
+          snowflake.style.opacity = Math.random() * 0.7 + 0.3;
+
+          snowContainer.appendChild(snowflake);
+        }
+      }
+
+      // Gọi hàm chạy hiệu ứng tuyết ngay khi load trang
+      initSnowEffect();
 
       // Hàm chuyển đổi ký tự đặc biệt để chống XSS tuyệt đối
       function escapeHtml(str) {
@@ -883,7 +944,7 @@ app.get('/', (req, res) => {
     </script>
 
     <!-- CHÂN TRANG (FOOTER) KÈM LOGO & HỖ TRỢ -->
-    <footer style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 40px 20px 20px; margin-top: 50px; font-size: 14px;">
+    <footer style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 40px 20px 20px; margin-top: 50px; font-size: 14px; position: relative; z-index: 2;">
       <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px;">
         
         <!-- Cột 1: Thông tin Shop -->
