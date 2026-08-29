@@ -755,14 +755,14 @@ app.get('/', (req, res) => {
               <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Napas</span>
             </div>
 
-            <!-- Khối Logo Thẻ Cào (Đã sửa link chuẩn + lót nền trắng) -->
-            <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
-              <div style="display: flex; gap: 4px; margin-bottom: 6px; margin-top: 5px; background: rgba(255,255,255,0.9); padding: 3px 5px; border-radius: 6px;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Viettel_logo_2021.svg" alt="Viettel" style="width: 16px; height: 16px; object-fit: contain;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/4/4e/Vinaphone_logo.svg" alt="Vinaphone" style="width: 16px; height: 16px; object-fit: contain;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/b/b3/Mobifone_logo.svg" alt="Mobifone" style="width: 16px; height: 16px; object-fit: contain;">
+            <!-- Khối Thẻ Cào (Dạng Badge Text Chuẩn Đẹp - Không Bao Giờ Lỗi) -->
+            <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px;">
+              <div style="display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: center; margin-bottom: 4px;">
+                <span style="font-size: 9px; background: #e11d48; color: white; padding: 1px 3px; border-radius: 3px; font-weight: bold;">Viettel</span>
+                <span style="font-size: 9px; background: #0284c7; color: white; padding: 1px 3px; border-radius: 3px; font-weight: bold;">Vina</span>
+                <span style="font-size: 9px; background: #0d9488; color: white; padding: 1px 3px; border-radius: 3px; font-weight: bold;">Mobi</span>
               </div>
-              <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Thẻ Cào</span>
+              <span style="font-size: 11px; color: #cbd5e1; font-weight: bold;">Thẻ Cào</span>
             </div>
           </div>
         </div>
