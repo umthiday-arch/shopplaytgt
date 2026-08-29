@@ -293,12 +293,8 @@ app.get('/', (req, res) => {
         box-shadow: 0 0 6px #38bdf8;
       }
       @keyframes fall {
-        0% {
-          transform: translateY(-10px) translateX(0);
-        }
-        100% {
-          transform: translateY(105vh) translateX(30px);
-        }
+        0% { transform: translateY(-10px) translateX(0); }
+        100% { transform: translateY(105vh) translateX(30px); }
       }
 
       header { 
@@ -357,6 +353,24 @@ app.get('/', (req, res) => {
       th { background: rgba(15, 23, 42, 0.5); color: #38bdf8; font-weight: bold; }
       .acc-box { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 13px; margin-top: 5px; word-break: break-all; border: 1px dashed #475569; }
       .rank-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 900; background: linear-gradient(45deg, #fbbf24, #d97706); color: #000; box-shadow: 0 0 10px rgba(251,191,36,0.5); }
+      
+      /* --- CSS PHẦN NẠP THẺ & BANNER --- */
+      .recharge-container { display: flex; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(10px); border-radius: 16px; padding: 20px; gap: 20px; max-width: 1200px; margin: 20px auto; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+      .recharge-left { flex: 0 0 35%; display: flex; flex-direction: column; }
+      .recharge-tabs { display: flex; border-bottom: 2px solid #334155; margin-bottom: 20px; }
+      .r-tab-btn { background: none; border: none; color: #94a3b8; font-size: 16px; font-weight: bold; padding: 10px 15px; cursor: pointer; flex: 1; text-align: center; transition: 0.3s; }
+      .r-tab-btn:hover { color: white; }
+      .r-tab-btn.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; margin-bottom: -2px; }
+      .r-tab-content { display: none; flex-direction: column; gap: 15px; }
+      .r-tab-content.active { display: flex; animation: fadeIn 0.4s; }
+      .recharge-left input, .recharge-left select { width: 100%; background-color: #0f172a; border: 1px solid #475569; color: #fff; padding: 12px; border-radius: 8px; font-size: 14px; box-sizing: border-box; outline: none; transition: 0.3s; }
+      .recharge-left input:focus, .recharge-left select:focus { border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.5); }
+      .btn-submit { background: linear-gradient(45deg, #e11d48, #fb7185); color: white; border: none; padding: 14px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; transition: 0.3s; box-shadow: 0 4px 15px rgba(225,29,72,0.4); }
+      .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(225,29,72,0.6); }
+      .warning-text { color: #cbd5e1; font-size: 12px; text-align: center; margin: 0; }
+      .recharge-right { flex: 1; border-radius: 12px; overflow: hidden; background-color: #000; border: 1px solid rgba(255,255,255,0.1); }
+      .recharge-right iframe { width: 100%; height: 100%; min-height: 320px; border: none; }
+      @media (max-width: 768px) { .recharge-container { flex-direction: column; padding: 15px; } .recharge-right iframe { min-height: 250px; } }
     </style>
   </head>
   <body>
@@ -371,6 +385,51 @@ app.get('/', (req, res) => {
         <button class="btn" onclick="openModal('registerModal')">Đăng Ký</button>
       </div>
     </header>
+
+    <!-- === BẮT ĐẦU PHẦN NẠP THẺ & BANNER === -->
+    <div class="recharge-container" style="position: relative; z-index: 10;">
+        <div class="recharge-left">
+            <div class="recharge-tabs">
+                <button class="r-tab-btn active" onclick="switchRechargeTab(event, 'tab-napthe')">NẠP THẺ</button>
+                <button class="r-tab-btn" onclick="switchRechargeTab(event, 'tab-napatm')">NẠP ATM</button>
+            </div>
+
+            <div id="tab-napthe" class="r-tab-content active">
+                <select>
+                    <option value="">✨ Loại Thẻ ✨</option>
+                    <option value="viettel">Viettel</option>
+                    <option value="vinaphone">Vinaphone</option>
+                    <option value="mobifone">Mobifone</option>
+                </select>
+                <select>
+                    <option value="">💸 Chọn mệnh giá 💸</option>
+                    <option value="10000">10,000 VNĐ</option>
+                    <option value="20000">20,000 VNĐ</option>
+                    <option value="50000">50,000 VNĐ</option>
+                    <option value="100000">100,000 VNĐ</option>
+                </select>
+                <input type="text" placeholder="Mã số thẻ">
+                <input type="text" placeholder="Số serial">
+                <button class="btn-submit">NẠP NGAY</button>
+                <p class="warning-text">Hãy chọn đúng mệnh giá. Sai sẽ mất thẻ</p>
+            </div>
+
+            <div id="tab-napatm" class="r-tab-content">
+                <div style="color: white; line-height: 1.6; font-size: 14px;">
+                    <p><b>Ngân hàng:</b> MB Bank</p>
+                    <p><b>Số tài khoản:</b> 123456789</p>
+                    <p><b>Chủ tài khoản:</b> NGUYEN VAN A</p>
+                    <p style="color: #ff3b3b;"><b>Nội dung chuyển khoản:</b> NAP [TênTàiKhoản]</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="recharge-right">
+            <!-- NHỚ THAY ĐƯỜNG LINK VIDEO YOUTUBE CỦA BẠN VÀO DƯỚI ĐÂY NHÉ -->
+            <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1" allowfullscreen></iframe>
+        </div>
+    </div>
+    <!-- === KẾT THÚC PHẦN NẠP THẺ & BANNER === -->
 
     <div class="container">
       <div class="categories">
@@ -808,6 +867,20 @@ app.get('/', (req, res) => {
         document.querySelectorAll('.tab-btn').forEach(tb => tb.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         btn.classList.add('active');
+      }
+
+      // HÀM CHUYỂN TAB DÀNH RIÊNG CHO KHUNG NẠP THẺ (KHÔNG ẢNH HƯỞNG ĐẾN PROFILE MODAL)
+      function switchRechargeTab(evt, tabId) {
+          let tabContents = document.getElementsByClassName("r-tab-content");
+          for (let i = 0; i < tabContents.length; i++) {
+              tabContents[i].classList.remove("active");
+          }
+          let tabBtns = document.getElementsByClassName("r-tab-btn");
+          for (let i = 0; i < tabBtns.length; i++) {
+              tabBtns[i].classList.remove("active");
+          }
+          document.getElementById(tabId).classList.add("active");
+          evt.currentTarget.classList.add("active");
       }
 
       async function changePassword() {
