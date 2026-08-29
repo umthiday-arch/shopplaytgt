@@ -557,7 +557,7 @@ app.get('/', (req, res) => {
         <!-- Cột phải: Banner / Video quảng cáo -->
         <div class="banner-right-side">
           <div class="banner-content-inner">
-            <h3>SÔP NÀY CÓ UY TÍN NHƯ LỜI ĐỒN?</h3>
+            <h3>Khám Phá Shop!!!</h3>
             <p>Khám phá kho acc game siêu khủng, giá hạt dẻ ngay dưới đây!</p>
             <div class="play-btn-circle" onclick="alert('Xem video review uy tín trên Youtube!')">▶</div>
           </div>
