@@ -69,7 +69,6 @@ app.post('/api/register', async (req, res) => {
     if (existingUser) return res.status(400).json({ success: false, message: 'Tên tài khoản đã tồn tại!' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    // Tài khoản đầu tiên đăng ký có thể được cấp quyền admin nếu muốn, ở đây mặc định 'user'
     const newUser = new User({ username, password: hashedPassword, balance: 100000, role: 'user' });
 
     await newUser.save();
@@ -252,7 +251,7 @@ app.post('/api/admin/users/delete', verifyToken, async (req, res) => {
   }
 });
 
-// 6. Giao diện Web (Frontend tích hợp đầy đủ)
+// 6. Giao diện Web (Frontend tích hợp an toàn chống XSS)
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
@@ -485,7 +484,7 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- MODAL QUẢN LÝ NGƯỜI DÙNG (DÀNH CHO ADMIN) -->
+    <!-- MODAL QUẢN LÝ NGƯỜI DÙNG (DÀNH CHO ADMIN) ĐÃ BẢO VỆ CHỐNG XSS -->
     <div id="adminUsersModal" class="modal">
       <div class="modal-content" style="max-width: 800px;">
         <h3 style="color: #f59e0b;">👑 Quản Lý Người Dùng</h3>
@@ -512,6 +511,16 @@ app.get('/', (req, res) => {
       let token = localStorage.getItem('token') || null;
       let currentUser = null;
       let allAccounts = [];
+
+      // Hàm chuyển đổi ký tự đặc biệt để chống XSS tuyệt đối
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
 
       async function checkAuth() {
         if (!token) {
@@ -792,7 +801,7 @@ app.get('/', (req, res) => {
         }
       }
 
-      // Hàm quản lý User (Admin)
+      // Hàm Quản lý User (Admin) đã được bảo vệ chống mã độc XSS
       async function openAdminUsers() {
         openModal('adminUsersModal');
         const tbody = document.getElementById('userListBody');
@@ -810,8 +819,11 @@ app.get('/', (req, res) => {
             var isAdmin = user.role === 'admin' ? 'selected' : '';
             var balance = user.balance || 0;
             
+            // Lọc chuỗi username để chặn hoàn toàn mã độc XSS
+            var safeUsername = escapeHtml(user.username);
+            
             tbody.innerHTML += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">' +
-                '<td style="padding: 10px; font-weight: bold; color: #fff;">' + user.username + '</td>' +
+                '<td style="padding: 10px; font-weight: bold; color: #fff;">' + safeUsername + '</td>' +
                 '<td style="padding: 10px;">' +
                   '<input type="number" id="bal_' + user._id + '" value="' + balance + '" style="width: 90px; padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #4ade80; font-weight: bold; border-radius: 4px; text-align: right;">' +
                 '</td>' +
@@ -870,7 +882,7 @@ app.get('/', (req, res) => {
       fetchAccounts();
     </script>
 
-    <!-- CHÂN TRANG (FOOTER) HOÀN CHỈNH KÈM LOGO & HỖ TRỢ -->
+    <!-- CHÂN TRANG (FOOTER) KÈM LOGO & HỖ TRỢ -->
     <footer style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 40px 20px 20px; margin-top: 50px; font-size: 14px;">
       <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px;">
         
