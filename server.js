@@ -515,18 +515,14 @@ app.get('/', (req, res) => {
         if (!userArea) return;
         if (currentUser) {
           const isAdmin = currentUser.role === 'admin';
-          userArea.innerHTML = \`
-            <span>👤 <b>\${currentUser.username}</b> \${isAdmin ? '<span class="badge-admin">ADMIN</span>' : ''} | Số dư: <b style="color:#4ade80">\${currentUser.balance.toLocaleString()}đ</b></span>
-            \${isAdmin ? '<button class="btn btn-admin btn-sm" onclick="openAdminUsers()">👑 QL User</button>' : ''}
-            <button class="btn btn-profile btn-sm" onclick="openProfile()">👤 Hồ Sơ</button>
-            \${isAdmin ? '<button class="btn btn-admin btn-sm" onclick="openModal(\\'adminModal\\')">+ Đăng Acc</button>' : ''}
-            <button class="btn btn-danger btn-sm" onclick="logout()">Đăng Xuất</button>
-          \`;
+          userArea.innerHTML = '<span>👤 <b>' + currentUser.username + '</b> ' + (isAdmin ? '<span class="badge-admin">ADMIN</span>' : '') + ' | Số dư: <b style="color:#4ade80">' + currentUser.balance.toLocaleString() + 'đ</b></span>' +
+            (isAdmin ? '<button class="btn btn-admin btn-sm" onclick="openAdminUsers()">👑 QL User</button>' : '') +
+            '<button class="btn btn-profile btn-sm" onclick="openProfile()">👤 Hồ Sơ</button>' +
+            (isAdmin ? '<button class="btn btn-admin btn-sm" onclick="openModal(\'adminModal\')">+ Đăng Acc</button>' : '') +
+            '<button class="btn btn-danger btn-sm" onclick="logout()">Đăng Xuất</button>';
         } else {
-          userArea.innerHTML = \`
-            <button class="btn" onclick="openModal('loginModal')">Đăng Nhập</button>
-            <button class="btn" onclick="openModal('registerModal')">Đăng Ký</button>
-          \`;
+          userArea.innerHTML = '<button class="btn" onclick="openModal(\'loginModal\')">Đăng Nhập</button>' +
+            '<button class="btn" onclick="openModal(\'registerModal\')">Đăng Ký</button>';
         }
       }
 
@@ -551,17 +547,14 @@ app.get('/', (req, res) => {
         }
 
         filtered.forEach(acc => {
-          grid.innerHTML += \`
-            <div class="card">
-              <img src="\${acc.image}" alt="Acc">
-              <div class="card-body">
-                <span class="status">SẴN HÀNG</span>
-                <h4>\${acc.title}</h4>
-                <div class="price">\${acc.price.toLocaleString()} VNĐ</div>
-                <button class="btn" style="width:100%" onclick="buyAccount('\${acc._id}')">Mua Ngay</button>
-              </div>
-            </div>
-          \`;
+          grid.innerHTML += '<div class="card">' +
+            '<img src="' + acc.image + '" alt="Acc">' +
+            '<div class="card-body">' +
+            '<span class="status">SẴN HÀNG</span>' +
+            '<h4>' + acc.title + '</h4>' +
+            '<div class="price">' + acc.price.toLocaleString() + ' VNĐ</div>' +
+            '<button class="btn" style="width:100%" onclick="buyAccount(\'' + acc._id + '\')">Mua Ngay</button>' +
+            '</div></div>';
         });
       }
 
@@ -666,32 +659,28 @@ app.get('/', (req, res) => {
         if(data.success) {
           const { user, purchases, deposits } = data;
           const totalDep = deposits.reduce((s, d) => s + d.amount, 0);
-          document.getElementById('profileOverview').innerHTML = \`
-            <p>Tài khoản: <b>\${user.username}</b></p>
-            <p>Số dư: <b style="color:#4ade80">\${user.balance.toLocaleString()} VNĐ</b></p>
-            <p>Đã nạp: <b>\${totalDep.toLocaleString()} VNĐ</b></p>
-            <p>Đã mua: <b>\${purchases.length} Acc</b></p>
-          \`;
+          document.getElementById('profileOverview').innerHTML = '<p>Tài khoản: <b>' + user.username + '</b></p>' +
+            '<p>Số dư: <b style="color:#4ade80">' + user.balance.toLocaleString() + ' VNĐ</b></p>' +
+            '<p>Đã nạp: <b>' + totalDep.toLocaleString() + ' VNĐ</b></p>' +
+            '<p>Đã mua: <b>' + purchases.length + ' Acc</b></p>';
 
           const pBody = document.getElementById('purchaseTableBody');
           pBody.innerHTML = purchases.length ? '' : '<tr><td colspan="4" style="text-align:center;">Chưa có đơn hàng</td></tr>';
           purchases.forEach(p => {
             const accInfo = 'TK: ' + p.accUser + ' | MK: ' + p.accPass;
-            pBody.innerHTML += \`<tr>
-              <td><b>\${p.title}</b></td>
-              <td style="color:#4ade80">\${p.price.toLocaleString()}đ</td>
-              <td>
-                <div class="acc-box">\${accInfo}</div>
-                <button class="btn btn-sm" onclick="copyAccInfo('\${p.accUser}', '\${p.accPass}')">📋 Copy</button>
-              </td>
-              <td>\${new Date(p.soldAt).toLocaleDateString()}</td>
-            </tr>\`;
+            pBody.innerHTML += '<tr>' +
+              '<td><b>' + p.title + '</b></td>' +
+              '<td style="color:#4ade80">' + p.price.toLocaleString() + 'đ</td>' +
+              '<td><div class="acc-box">' + accInfo + '</div>' +
+              '<button class="btn btn-sm" onclick="copyAccInfo(\'' + p.accUser + '\', \'' + p.accPass + '\')">📋 Copy</button></td>' +
+              '<td>' + new Date(p.soldAt).toLocaleDateString() + '</td>' +
+              '</tr>';
           });
 
           const dBody = document.getElementById('depositTableBody');
           dBody.innerHTML = deposits.length ? '' : '<tr><td colspan="4" style="text-align:center;">Chưa có lịch sử nạp</td></tr>';
           deposits.forEach(d => {
-            dBody.innerHTML += \`<tr><td style="color:#4ade80">+\${d.amount.toLocaleString()}đ</td><td>\${d.method}</td><td>Thành công</td><td>\${new Date(d.createdAt).toLocaleDateString()}</td></tr>\`;
+            dBody.innerHTML += '<tr><td style="color:#4ade80">+' + d.amount.toLocaleString() + 'đ</td><td>' + d.method + '</td><td>Thành công</td><td>' + new Date(d.createdAt).toLocaleDateString() + '</td></tr>';
           });
         }
       }
@@ -746,15 +735,13 @@ app.get('/', (req, res) => {
           const users = await res.json();
           tbody.innerHTML = '';
           users.forEach(u => {
-            tbody.innerHTML += \`<tr>
-              <td>\${u.username}</td>
-              <td><input type="number" id="bal_\${u._id}" value="\${u.balance}" style="width:80px;background:#0b0f17;color:#4ade80;border:1px solid #475569;padding:4px;"></td>
-              <td><select id="role_\${u._id}" style="background:#0b0f17;color:#fff;border:1px solid #475569;padding:4px;"><option value="user" \${u.role==='user'?'selected':''}>User</option><option value="admin" \${u.role==='admin'?'selected':''}>Admin</option></select></td>
-              <td>
-                <button class="btn btn-sm" style="background:#10b981;" onclick="updateUser('\${u._id}')">Lưu</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteUser('\${u._id}')">Xóa</button>
-              </td>
-            </tr>\`;
+            tbody.innerHTML += '<tr>' +
+              '<td>' + u.username + '</td>' +
+              '<td><input type="number" id="bal_' + u._id + '" value="' + u.balance + '" style="width:80px;background:#0b0f17;color:#4ade80;border:1px solid #475569;padding:4px;"></td>' +
+              '<td><select id="role_' + u._id + '" style="background:#0b0f17;color:#fff;border:1px solid #475569;padding:4px;"><option value="user" ' + (u.role==='user'?'selected':'') + '>User</option><option value="admin" ' + (u.role==='admin'?'selected':'') + '>Admin</option></select></td>' +
+              '<td><button class="btn btn-sm" style="background:#10b981;" onclick="updateUser(\'' + u._id + '\')">Lưu</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="deleteUser(\'' + u._id + '\')">Xóa</button></td>' +
+              '</tr>';
           });
         } catch(e) { tbody.innerHTML = '<tr><td colspan="4" style="color:red;text-align:center;">Lỗi tải dữ liệu</td></tr>'; }
       }
