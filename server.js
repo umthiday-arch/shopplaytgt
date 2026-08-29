@@ -281,7 +281,7 @@ app.get('/', (req, res) => {
       
       body { 
         background-color: #0f172a; 
-        background-image: url('https://genk.mediacdn.vn/k:thumb_w/640/2016/711170-1467181537360/tonghophinhnendesktopoverwatchdepchogamethup2.png'); 
+        background-image: url('https://i.pinimg.com/originals/a1/1a/32/a11a3291559d29e35772f31d904db507.jpg'); 
         background-size: cover;
         background-attachment: fixed;
         background-position: center;
