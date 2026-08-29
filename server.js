@@ -838,7 +838,7 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
-    <!-- CODE JAVASCRIPT XỬ LÝ QUẢN LÝ USER -->
+<!-- CODE JAVASCRIPT XỬ LÝ QUẢN LÝ USER (Đã sửa lỗi xung đột backtick) -->
     <script>
       // Hàm mở bảng và tải dữ liệu từ MongoDB
       async function openAdminUsers() {
@@ -851,25 +851,27 @@ app.get('/', (req, res) => {
           const users = await res.json();
           
           tbody.innerHTML = '';
-          users.forEach(user => {
-            tbody.innerHTML += `
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <td style="padding: 10px; font-weight: bold; color: #fff;">${user.username}</td>
-                <td style="padding: 10px;">
-                  <input type="number" id="bal_${user._id}" value="${user.balance || 0}" style="width: 90px; padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #4ade80; font-weight: bold; border-radius: 4px; text-align: right;">
-                </td>
-                <td style="padding: 10px;">
-                  <select id="role_${user._id}" style="padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #fff; border-radius: 4px;">
-                    <option value="USER" ${user.role === 'USER' ? 'selected' : ''}>Người dùng</option>
-                    <option value="ADMIN" ${user.role === 'ADMIN' ? 'selected' : ''}>Admin</option>
-                  </select>
-                </td>
-                <td style="padding: 10px;">
-                  <button onclick="updateUser('${user._id}')" style="background: #10b981; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; font-size: 12px;">Lưu</button>
-                  <button onclick="deleteUser('${user._id}')" style="background: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Xóa</button>
-                </td>
-              </tr>
-            `;
+          users.forEach(function(user) {
+            var isUser = user.role === 'USER' ? 'selected' : '';
+            var isAdmin = user.role === 'ADMIN' ? 'selected' : '';
+            var balance = user.balance || 0;
+            
+            tbody.innerHTML += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">' +
+                '<td style="padding: 10px; font-weight: bold; color: #fff;">' + user.username + '</td>' +
+                '<td style="padding: 10px;">' +
+                  '<input type="number" id="bal_' + user._id + '" value="' + balance + '" style="width: 90px; padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #4ade80; font-weight: bold; border-radius: 4px; text-align: right;">' +
+                '</td>' +
+                '<td style="padding: 10px;">' +
+                  '<select id="role_' + user._id + '" style="padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #fff; border-radius: 4px;">' +
+                    '<option value="USER" ' + isUser + '>Người dùng</option>' +
+                    '<option value="ADMIN" ' + isAdmin + '>Admin</option>' +
+                  '</select>' +
+                '</td>' +
+                '<td style="padding: 10px;">' +
+                  '<button onclick="updateUser(\'' + user._id + '\')" style="background: #10b981; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; font-size: 12px;">Lưu</button>' +
+                  '<button onclick="deleteUser(\'' + user._id + '\')" style="background: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Xóa</button>' +
+                '</td>' +
+              '</tr>';
           });
         } catch (err) {
           tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #ef4444;">Lỗi không thể tải dữ liệu!</td></tr>';
@@ -878,13 +880,13 @@ app.get('/', (req, res) => {
 
       // Hàm Lưu (Cập nhật tiền/quyền)
       async function updateUser(userId) {
-        const balance = document.getElementById(`bal_${userId}`).value;
-        const role = document.getElementById(`role_${userId}`).value;
+        const balance = document.getElementById('bal_' + userId).value;
+        const role = document.getElementById('role_' + userId).value;
         
         const res = await fetch('/api/admin/users/update', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, balance: Number(balance), role })
+          body: JSON.stringify({ userId: userId, balance: Number(balance), role: role })
         });
         const data = await res.json();
         alert(data.message);
@@ -896,7 +898,7 @@ app.get('/', (req, res) => {
         const res = await fetch('/api/admin/users/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId })
+          body: JSON.stringify({ userId: userId })
         });
         const data = await res.json();
         alert(data.message);
