@@ -2,10 +2,19 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
 
 const app = express();
+
+// Bảo mật HTTP Headers (tắt CSP mặc định để không chặn iframe Youtube và hình ảnh bên ngoài)
+app.use(helmet({ contentSecurityPolicy: false }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Chống NoSQL Injection (tự động lọc bỏ các ký tự độc hại như $, . trong request body/query)
+app.use(mongoSanitize());
 
 // Khóa bí mật JWT
 const JWT_SECRET = process.env.JWT_SECRET || "shopplaytgt_super_secret_key_2026";
@@ -119,25 +128,32 @@ app.get('/api/accounts', async (req, res) => {
   }
 });
 
+// ĐÃ NÂNG CẤP BẢO MẬT: Chống Race Condition (Spam lệnh mua bằng Atomic Update)
 app.post('/api/buy', verifyToken, async (req, res) => {
   try {
     const { accId } = req.body;
-    const user = await User.findById(req.user.id);
-    const account = await GameAccount.findById(accId);
-
-    if (!account || account.status === 'sold') {
+    
+    // Kiểm tra xem acc có tồn tại và chưa bán không
+    const account = await GameAccount.findOne({ _id: accId, status: 'available' });
+    if (!account) {
       return res.status(400).json({ success: false, message: 'Acc này đã được bán hoặc không tồn tại!' });
     }
-    if (user.balance < account.price) {
+
+    // Dùng findOneAndUpdate với điều kiện số dư >= giá tiền để trừ tiền nguyên tử (Atomic), chặn hoàn toàn tool spam mua đồng thời
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: req.user.id, balance: { $gte: account.price } },
+      { $inc: { balance: -account.price } },
+      { new: true }
+    );
+
+    if (!updatedUser) {
       return res.status(400).json({ success: false, message: 'Số dư không đủ! Vui lòng nạp thêm.' });
     }
 
-    user.balance -= account.price;
     account.status = 'sold';
-    account.buyer = user._id;
+    account.buyer = updatedUser._id;
     account.soldAt = new Date();
 
-    await user.save();
     await account.save();
 
     res.json({
@@ -145,7 +161,7 @@ app.post('/api/buy', verifyToken, async (req, res) => {
       message: 'Mua thành công!',
       accUser: account.accUser,
       accPass: account.accPass,
-      newBalance: user.balance
+      newBalance: updatedUser.balance
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Giao dịch thất bại!' });
