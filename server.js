@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Khóa bí mật JWT (Mã hóa token)
+// Khóa bí mật JWT
 const JWT_SECRET = process.env.JWT_SECRET || "shopplaytgt_super_secret_key_2026";
 
 // Kết nối Database
@@ -21,7 +21,7 @@ const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   balance: { type: Number, default: 0 },
-  role: { type: String, default: 'user' }
+  role: { type: String, default: 'user' } // 'user' hoặc 'admin'
 });
 
 const AccountSchema = new mongoose.Schema({
@@ -46,7 +46,7 @@ const User = mongoose.model('User', UserSchema);
 const GameAccount = mongoose.model('GameAccount', AccountSchema);
 const Deposit = mongoose.model('Deposit', DepositSchema);
 
-// Middleware xác thực Token (Bảo mật tuyệt đối)
+// Middleware xác thực Token
 function verifyToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader) return res.status(401).json({ success: false, message: 'Chưa cung cấp Token xác thực!' });
@@ -54,7 +54,7 @@ function verifyToken(req, res, next) {
   const token = authHeader.split(' ')[1];
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) return res.status(403).json({ success: false, message: 'Token không hợp lệ hoặc đã hết hạn!' });
-    req.user = decoded; // Lưu thông tin user đã giải mã vào request
+    req.user = decoded; 
     next();
   });
 }
@@ -69,6 +69,7 @@ app.post('/api/register', async (req, res) => {
     if (existingUser) return res.status(400).json({ success: false, message: 'Tên tài khoản đã tồn tại!' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    // Tài khoản đầu tiên đăng ký có thể được cấp quyền admin nếu muốn, ở đây mặc định 'user'
     const newUser = new User({ username, password: hashedPassword, balance: 100000, role: 'user' });
 
     await newUser.save();
@@ -87,7 +88,6 @@ app.post('/api/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ success: false, message: 'Mật khẩu không chính xác!' });
 
-    // Tạo Token có thời hạn 1 ngày
     const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
 
     res.json({
@@ -100,7 +100,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// API Lấy thông tin mới nhất của User (Đồng bộ chống F12 giả mạo)
 app.get('/api/user/me', verifyToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.id, '-password');
@@ -220,7 +219,40 @@ app.post('/api/admin/add-account', verifyToken, async (req, res) => {
   }
 });
 
-// 5. Giao diện Web
+// 5. API QUẢN LÝ USER DÀNH CHO ADMIN
+app.get('/api/admin/users', verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Không có quyền truy cập!' });
+    const users = await User.find({}, '-password');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi lấy danh sách user' });
+  }
+});
+
+app.post('/api/admin/users/update', verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Không có quyền truy cập!' });
+    const { userId, balance, role } = req.body;
+    await User.findByIdAndUpdate(userId, { balance, role: role.toLowerCase() });
+    res.json({ success: true, message: 'Cập nhật tài khoản thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi cập nhật user!' });
+  }
+});
+
+app.post('/api/admin/users/delete', verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Không có quyền truy cập!' });
+    const { userId } = req.body;
+    await User.findByIdAndDelete(userId);
+    res.json({ success: true, message: 'Đã xóa tài khoản thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Lỗi xóa user!' });
+  }
+});
+
+// 6. Giao diện Web (Frontend tích hợp đầy đủ)
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
@@ -232,10 +264,8 @@ app.get('/', (req, res) => {
     <style>
       * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
       
-      /* 1. ĐỔI HÌNH NỀN TOÀN WEB TẠI ĐÂY */
       body { 
         background-color: #0f172a; 
-        /* Link ảnh nền (bạn có thể thay link ảnh Play Together của bạn vào giữa 2 dấu ngoặc đơn) */
         background-image: url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop'); 
         background-size: cover;
         background-attachment: fixed;
@@ -243,10 +273,9 @@ app.get('/', (req, res) => {
         color: #f8fafc; 
       }
 
-      /* 2. HIỆU ỨNG KÍNH MỜ (GLASSMORPHISM) CHO THANH MENU VÀ THẺ ACC */
       header { 
-        background: rgba(30, 41, 59, 0.85); /* Trong suốt 85% */
-        backdrop-filter: blur(12px); /* Làm mờ cảnh phía sau */
+        background: rgba(30, 41, 59, 0.85); 
+        backdrop-filter: blur(12px); 
         padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #38bdf8; flex-wrap: wrap; gap: 10px; 
         position: sticky; top: 0; z-index: 50;
       }
@@ -257,11 +286,9 @@ app.get('/', (req, res) => {
         box-shadow: 0 10px 30px rgba(0,0,0,0.5); transition: 0.3s; 
       }
       
-      /* 3. HIỆU ỨNG 3D VÀ PHÁT SÁNG KHI DI CHUỘT (HOVER) */
       .card:hover { transform: translateY(-10px); border-color: #38bdf8; box-shadow: 0 15px 40px rgba(56,189,248,0.4); }
       .logo { font-size: 24px; font-weight: 900; color: #fff; text-shadow: 0 0 10px #38bdf8, 0 0 20px #38bdf8; }
       
-      /* 4. LÀM ĐẸP NÚT BẤM VỚI MÀU GRADIENT (CHUYỂN MÀU) */
       .btn { background: linear-gradient(45deg, #2563eb, #38bdf8); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.3s; box-shadow: 0 4px 15px rgba(37,99,235,0.4); }
       .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(56,189,248,0.6); }
       .btn-admin { background: linear-gradient(45deg, #d97706, #f59e0b); box-shadow: 0 4px 15px rgba(217,119,6,0.4); }
@@ -271,7 +298,6 @@ app.get('/', (req, res) => {
       .cat-btn:hover { background: #38bdf8; color: #0f172a; transform: scale(1.05); }
       .cat-btn.active { background: #38bdf8; color: #0f172a; box-shadow: 0 0 15px #38bdf8; border: none; }
       
-      /* CÁC THÀNH PHẦN KHÁC (Giữ nguyên cấu trúc, thêm hiệu ứng) */
       .user-info { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
       .badge-admin { background: #f59e0b; color: #000; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
       .btn-sm { padding: 5px 10px; font-size: 12px; }
@@ -284,14 +310,12 @@ app.get('/', (req, res) => {
       .status { display: inline-block; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; margin-bottom: 10px; letter-spacing: 1px;}
       .status-available { background: rgba(22, 101, 52, 0.8); color: #86efac; border: 1px solid #4ade80; }
       
-      /* Bảng Modal (Bảng Đăng nhập / Hồ sơ) */
       .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 100; padding: 10px; }
       .modal-content { background: #1e293b; padding: 30px; border-radius: 16px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; border: 1px solid #38bdf8; box-shadow: 0 0 30px rgba(56,189,248,0.2); }
       .modal-content h3 { margin-bottom: 20px; text-align: center; color: #38bdf8; font-size: 22px; }
       .modal-content input, .modal-content select { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; transition: 0.3s; }
       .modal-content input:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.5); }
       
-      /* Tabs Hồ Sơ */
       .profile-tabs { display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 2px solid #334155; }
       .tab-btn { background: transparent; color: #94a3b8; border: none; padding: 10px 15px; cursor: pointer; font-weight: bold; transition: 0.3s; }
       .tab-btn:hover { color: white; }
@@ -342,7 +366,6 @@ app.get('/', (req, res) => {
 
     <div class="modal" id="registerModal">
       <div class="modal-content">
-
         <h3>Đăng Ký Tài Khoản</h3>
         <input type="text" id="regUser" placeholder="Tên tài khoản">
         <input type="password" id="regPass" placeholder="Mật khẩu">
@@ -423,6 +446,68 @@ app.get('/', (req, res) => {
       </div>
     </div>
 
+    <!-- MODAL HƯỚNG DẪN MUA HÀNG -->
+    <div id="guideModal" class="modal">
+      <div class="modal-content">
+        <h3>📖 Hướng Dẫn Mua Hàng</h3>
+        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <p><strong>Bước 1:</strong> Đăng ký / Đăng nhập tài khoản trên website của shop.</p>
+          <p><strong>Bước 2:</strong> Nạp tiền vào tài khoản thông qua nút nạp tiền giả lập.</p>
+          <p><strong>Bước 3:</strong> Chọn tài khoản game bạn thích tại trang chủ và bấm mua ngay.</p>
+          <p><strong>Bước 4:</strong> Hệ thống tự động trừ tiền và gửi thông tin tài khoản hiển thị ngay lập tức, đồng thời lưu vào Lịch sử mua hàng.</p>
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('guideModal')">Đóng lại</button>
+      </div>
+    </div>
+
+    <!-- MODAL CHÍNH SÁCH BẢO HÀNH -->
+    <div id="warrantyModal" class="modal">
+      <div class="modal-content">
+        <h3>🛡️ Chính Sách Bảo Hành</h3>
+        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <p>✅ <strong>Bảo hành đúng thông tin:</strong> Acc đúng như hình ảnh và mô tả trên web.</p>
+          <p>🔒 <strong>Lưu ý quan trọng:</strong> Ngay sau khi nhận được tài khoản, quý khách vui lòng tiến hành đổi mật khẩu và liên kết thông tin cá nhân (Email/SĐT) để bảo mật.</p>
+          <p>❌ <strong>Từ chối bảo hành:</strong> Các trường hợp tự ý chia sẻ tài khoản cho người khác hoặc bị khóa do vi phạm nội quy game.</p>
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('warrantyModal')">Đóng lại</button>
+      </div>
+    </div>
+
+    <!-- MODAL KIỂM TRA ĐƠN HÀNG -->
+    <div id="checkModal" class="modal">
+      <div class="modal-content">
+        <h3>🔍 Kiểm Tra Đơn Hàng</h3>
+        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <p>Để kiểm tra lại toàn bộ các tài khoản game bạn đã mua trước đó:</p>
+          <p>👉 Bạn hãy bấm vào nút <strong>Hồ Sơ</strong> ở góc trên bên phải màn hình -> Chọn tab <strong>Lịch sử mua Acc</strong> để xem lại toàn bộ thông tin tài khoản đã giao dịch thành công.</p>
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('checkModal')">Đóng lại</button>
+      </div>
+    </div>
+
+    <!-- MODAL QUẢN LÝ NGƯỜI DÙNG (DÀNH CHO ADMIN) -->
+    <div id="adminUsersModal" class="modal">
+      <div class="modal-content" style="max-width: 800px;">
+        <h3 style="color: #f59e0b;">👑 Quản Lý Người Dùng</h3>
+        <div style="overflow-x: auto; margin-top: 15px;">
+          <table style="width: 100%; border-collapse: collapse; color: #cbd5e1; font-size: 14px; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <th style="padding: 10px;">Tài khoản</th>
+                <th style="padding: 10px;">Số dư (VNĐ)</th>
+                <th style="padding: 10px;">Quyền hạn</th>
+                <th style="padding: 10px;">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="userListBody">
+              <!-- JS tự động tải dữ liệu vào đây -->
+            </tbody>
+          </table>
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('adminUsersModal')">Đóng lại</button>
+      </div>
+    </div>
+
     <script>
       let token = localStorage.getItem('token') || null;
       let currentUser = null;
@@ -456,7 +541,7 @@ app.get('/', (req, res) => {
           const isAdmin = currentUser.role === 'admin';
           userArea.innerHTML = \`
             <span>👤 <b>\${currentUser.username}</b> \${isAdmin ? '<span class="badge-admin">ADMIN</span>' : ''} | Số dư: <b style="color:#4ade80">\${currentUser.balance.toLocaleString()}đ</b></span>
-            <button class="btn" style="background: #f59e0b; color: white; margin-right: 5px;" onclick="openAdminUsers()">👑 Quản lý User</button>
+            \${isAdmin ? '<button class="btn" style="background: #f59e0b; color: white;" onclick="openAdminUsers()">👑 QL User</button>' : ''}
             <button class="btn btn-profile" onclick="openProfile()">👤 Hồ Sơ</button>
             <button class="btn" onclick="depositMoney()">+ Nạp Tiền</button>
             \${isAdmin ? '<button class="btn btn-admin" onclick="openModal(\\'adminModal\\')">+ Đăng Acc</button>' : ''}
@@ -502,9 +587,9 @@ app.get('/', (req, res) => {
         });
       }
 
-      function filterCat(cat) {
+      function filterCat(cat, eventObj) {
         document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-        event.target.classList.add('active');
+        if(event && event.target) event.target.classList.add('active');
         renderAccounts(cat);
       }
 
@@ -563,7 +648,7 @@ app.get('/', (req, res) => {
         const data = await res.json();
         if(data.success) {
           alert(\`🎉 MUA THÀNH CÔNG!\\n\\nTài khoản: \${data.accUser}\\nMật khẩu: \${data.accPass}\\n\\n(Bạn có thể xem lại trong mục Hồ Sơ Cá Nhân)\`);
-          await checkAuth(); // Đồng bộ lại số dư mới nhất từ server
+          await checkAuth(); 
           fetchAccounts();
         } else {
           alert(data.message);
@@ -583,7 +668,7 @@ app.get('/', (req, res) => {
           });
           const data = await res.json();
           if(data.success) {
-            await checkAuth(); // Đồng bộ lại số dư thật từ server
+            await checkAuth(); 
             alert('Nạp tiền thành công!');
           }
         }
@@ -707,28 +792,99 @@ app.get('/', (req, res) => {
         }
       }
 
+      // Hàm quản lý User (Admin)
+      async function openAdminUsers() {
+        openModal('adminUsersModal');
+        const tbody = document.getElementById('userListBody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 15px;">Đang tải dữ liệu...</td></tr>';
+        
+        try {
+          const res = await fetch('/api/admin/users', {
+            headers: { 'Authorization': \`Bearer \${token}\` }
+          });
+          const users = await res.json();
+          
+          tbody.innerHTML = '';
+          users.forEach(function(user) {
+            var isUser = user.role === 'user' ? 'selected' : '';
+            var isAdmin = user.role === 'admin' ? 'selected' : '';
+            var balance = user.balance || 0;
+            
+            tbody.innerHTML += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">' +
+                '<td style="padding: 10px; font-weight: bold; color: #fff;">' + user.username + '</td>' +
+                '<td style="padding: 10px;">' +
+                  '<input type="number" id="bal_' + user._id + '" value="' + balance + '" style="width: 90px; padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #4ade80; font-weight: bold; border-radius: 4px; text-align: right;">' +
+                '</td>' +
+                '<td style="padding: 10px;">' +
+                  '<select id="role_' + user._id + '" style="padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #fff; border-radius: 4px;">' +
+                    '<option value="user" ' + isUser + '>Người dùng</option>' +
+                    '<option value="admin" ' + isAdmin + '>Admin</option>' +
+                  '</select>' +
+                '</td>' +
+                '<td style="padding: 10px;">' +
+                  '<button onclick="updateUser(\\'' + user._id + '\\')" style="background: #10b981; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; font-size: 12px;">Lưu</button>' +
+                  '<button onclick="deleteUser(\\'' + user._id + '\\')" style="background: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Xóa</button>' +
+                '</td>' +
+              '</tr>';
+          });
+        } catch (err) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #ef4444;">Lỗi không thể tải dữ liệu!</td></tr>';
+        }
+      }
+
+      async function updateUser(userId) {
+        const balance = document.getElementById('bal_' + userId).value;
+        const role = document.getElementById('role_' + userId).value;
+        
+        const res = await fetch('/api/admin/users/update', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': \`Bearer \${token}\`
+          },
+          body: JSON.stringify({ userId: userId, balance: Number(balance), role: role })
+        });
+        const data = await res.json();
+        alert(data.message);
+      }
+
+      async function deleteUser(userId) {
+        if(!confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản này không?')) return;
+        const res = await fetch('/api/admin/users/delete', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': \`Bearer \${token}\`
+          },
+          body: JSON.stringify({ userId: userId })
+        });
+        const data = await res.json();
+        alert(data.message);
+        if(data.success) openAdminUsers();
+      }
+
       function openModal(id) { document.getElementById(id).style.display = 'flex'; }
       function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-      // Khởi động chạy kiểm tra xác thực
       checkAuth();
       fetchAccounts();
     </script>
-<!-- CHÂN TRANG (FOOTER) -->
+
+    <!-- CHÂN TRANG (FOOTER) HOÀN CHỈNH KÈM LOGO & HỖ TRỢ -->
     <footer style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 40px 20px 20px; margin-top: 50px; font-size: 14px;">
       <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px;">
         
         <!-- Cột 1: Thông tin Shop -->
         <div>
           <div class="logo" style="margin-bottom: 12px; font-size: 20px;">🎮 SHOP GAME VIP</div>
-          <p style="line-height: 1.6; margin-bottom: 15px;">Hệ thống chuyên cung cấp tài khoản game uy tín, giá rẻ, giao dịch tự động nhanh chóng và bảo mật 24/7.</p>
+          <p style="line-height: 1.6; margin-bottom: 15px;">Hệ thống chuyên cung cấp tài khoản game uy tín, giao dịch tự động nhanh chóng và bảo mật 24/7.</p>
           <div style="display: flex; gap: 10px;">
             <span style="background: rgba(56,189,248,0.1); color: #38bdf8; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">Giao dịch tự động</span>
             <span style="background: rgba(74,222,128,0.1); color: #4ade80; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;">Uy tín 100%</span>
           </div>
         </div>
-
-        <!-- Cột 2: Hỗ trợ khách hàng (Đã bấm vào hiện bảng thông tin) -->
+        
+        <!-- Cột 2: Hỗ trợ khách hàng -->
         <div>
           <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">HỖ TRỢ KHÁCH HÀNG</h4>
           <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px;">
@@ -738,26 +894,24 @@ app.get('/', (req, res) => {
           </ul>
         </div>
 
-<!-- Cột 3: Kết nối với chúng tôi -->
+        <!-- Cột 3: Kết nối & Thanh toán -->
         <div>
           <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">KẾT NỐI VỚI CHÚNG TÔI</h4>
           <p style="margin-bottom: 10px;">Hotline / Zalo: <strong style="color: #38bdf8;">0123.456.789</strong></p>
-          <p style="margin-bottom: 15px;">Fanpage hỗ trợ: <a href="#" style="color: #38bdf8; text-decoration: none;">fb.com/shopcuaban</a></p>
+          <p style="margin-bottom: 15px;">Fanpage hỗ trợ: <a href="#" style="color: #38bdf8; text-decoration: none;">fb.com/shopgamevip</a></p>
           
           <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-            <!-- Khối Logo MoMo -->
+            <!-- MoMo -->
             <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
               <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-MoMo-Square.png" alt="MoMo" style="width: 35px; height: 35px; object-fit: contain; margin-bottom: 6px;">
               <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">MoMo</span>
             </div>
-
-            <!-- Khối Logo Napas (ATM) -->
+            <!-- Napas -->
             <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
               <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-Napas.png" alt="Napas" style="width: 50px; height: 25px; object-fit: contain; margin-bottom: 10px; margin-top: 6px;">
               <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Napas</span>
             </div>
-
-            <!-- Khối Thẻ Cào (Dạng Badge Text Chuẩn Đẹp - Không Bao Giờ Lỗi) -->
+            <!-- Thẻ cào -->
             <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px;">
               <div style="display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: center; margin-bottom: 4px;">
                 <span style="font-size: 9px; background: #e11d48; color: white; padding: 1px 3px; border-radius: 3px; font-weight: bold;">Viettel</span>
@@ -770,142 +924,19 @@ app.get('/', (req, res) => {
         </div>
 
       </div>
-
-      <!-- Dòng bản quyền phía dưới cùng -->
+      
       <div style="text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; font-size: 13px;">
         <p>© 2026 <strong>Shop Game VIP</strong>. All rights reserved. Thiết kế tối ưu cho game thủ.</p>
       </div>
     </footer>
 
-    <!-- BẢNG MODAL HIỂN THỊ NỘI DUNG HƯỚNG DẪN MUA HÀNG -->
-    <div id="guideModal" class="modal">
-      <div class="modal-content">
-        <h3>📖 Hướng Dẫn Mua Hàng</h3>
-        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
-          <p><strong>Bước 1:</strong> Đăng ký / Đăng nhập tài khoản trên website của shop.</p>
-          <p><strong>Bước 2:</strong> Nạp tiền vào tài khoản thông qua QR Code MoMo hoặc chuyển khoản ngân hàng.</p>
-          <p><strong>Bước 3:</strong> Chọn tài khoản game bạn thích tại trang chủ và bấm nút mua.</p>
-          <p><strong>Bước 4:</strong> Hệ thống tự động trừ tiền và gửi thông tin tài khoản (Tài khoản & Mật khẩu) ngay lập tức vào mục <em>Lịch sử giao dịch</em> hoặc <em>Tài khoản của tôi</em>.</p>
-        </div>
-        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('guideModal')">Đóng lại</button>
-      </div>
-    </div>
-
-    <!-- BẢNG MODAL CHÍNH SÁCH BẢO HÀNH -->
-    <div id="warrantyModal" class="modal">
-      <div class="modal-content">
-        <h3>🛡️ Chính Sách Bảo Hành</h3>
-        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
-          <p>✅ <strong>Bảo hành đúng thông tin:</strong> Acc đúng như hình ảnh và mô tả trên web.</p>
-          <p>🔒 <strong>Lưu ý quan trọng:</strong> Ngay sau khi nhận được tài khoản, quý khách vui lòng tiến hành đổi mật khẩu và liên kết thông tin cá nhân (Email/SĐT) để bảo mật tuyệt đối.</p>
-          <p>❌ <strong>Từ chối bảo hành:</strong> Các trường hợp tự ý chia sẻ tài khoản cho người khác hoặc bị khóa do vi phạm nội quy game.</p>
-        </div>
-        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('warrantyModal')">Đóng lại</button>
-      </div>
-    </div>
-
-    <!-- BẢNG MODAL KIỂM TRA ĐƠN HÀNG -->
-    <div id="checkModal" class="modal">
-      <div class="modal-content">
-        <h3>🔍 Kiểm Tra Đơn Hàng</h3>
-        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
-          <p>Để kiểm tra lại toàn bộ các tài khoản game bạn đã mua trước đó:</p>
-          <p>👉 Bạn hãy bấm vào nút <strong>Hồ Sơ</strong> ở góc trên bên phải màn hình -> Chọn tab <strong>Lịch sử mua hàng</strong> để xem lại toàn bộ thông tin tài khoản đã giao dịch thành công.</p>
-        </div>
-        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('checkModal')">Đóng lại</button>
-      </div>
-    </div>
-    <!-- BẢNG MODAL QUẢN LÝ NGƯỜI DÙNG (CHỈ ADMIN) -->
-    <div id="adminUsersModal" class="modal">
-      <div class="modal-content" style="max-width: 800px;">
-        <h3 style="color: #f59e0b;">👑 Quản Lý Người Dùng</h3>
-        <div style="overflow-x: auto; margin-top: 15px;">
-          <table style="width: 100%; border-collapse: collapse; color: #cbd5e1; font-size: 14px; text-align: left;">
-            <thead>
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                <th style="padding: 10px;">Tài khoản</th>
-                <th style="padding: 10px;">Số dư (VNĐ)</th>
-                <th style="padding: 10px;">Quyền hạn</th>
-                <th style="padding: 10px;">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody id="userListBody">
-              <!-- JS sẽ tự động tải danh sách user vào đây -->
-            </tbody>
-          </table>
-        </div>
-        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('adminUsersModal')">Đóng lại</button>
-      </div>
-    </div>
-
-<!-- CODE JAVASCRIPT XỬ LÝ QUẢN LÝ USER (Đã sửa lỗi xung đột backtick) -->
-    <script>
-      // Hàm mở bảng và tải dữ liệu từ MongoDB
-      async function openAdminUsers() {
-        openModal('adminUsersModal');
-        const tbody = document.getElementById('userListBody');
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 15px;">Đang tải dữ liệu...</td></tr>';
-        
-        try {
-          const res = await fetch('/api/admin/users');
-          const users = await res.json();
-          
-          tbody.innerHTML = '';
-          users.forEach(function(user) {
-            var isUser = user.role === 'USER' ? 'selected' : '';
-            var isAdmin = user.role === 'ADMIN' ? 'selected' : '';
-            var balance = user.balance || 0;
-            
-            tbody.innerHTML += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">' +
-                '<td style="padding: 10px; font-weight: bold; color: #fff;">' + user.username + '</td>' +
-                '<td style="padding: 10px;">' +
-                  '<input type="number" id="bal_' + user._id + '" value="' + balance + '" style="width: 90px; padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #4ade80; font-weight: bold; border-radius: 4px; text-align: right;">' +
-                '</td>' +
-                '<td style="padding: 10px;">' +
-                  '<select id="role_' + user._id + '" style="padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #fff; border-radius: 4px;">' +
-                    '<option value="USER" ' + isUser + '>Người dùng</option>' +
-                    '<option value="ADMIN" ' + isAdmin + '>Admin</option>' +
-                  '</select>' +
-                '</td>' +
-                '<td style="padding: 10px;">' +
-                  '<button onclick="updateUser(\'' + user._id + '\')" style="background: #10b981; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; font-size: 12px;">Lưu</button>' +
-                  '<button onclick="deleteUser(\'' + user._id + '\')" style="background: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Xóa</button>' +
-                '</td>' +
-              '</tr>';
-          });
-        } catch (err) {
-          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #ef4444;">Lỗi không thể tải dữ liệu!</td></tr>';
-        }
-      }
-
-      // Hàm Lưu (Cập nhật tiền/quyền)
-      async function updateUser(userId) {
-        const balance = document.getElementById('bal_' + userId).value;
-        const role = document.getElementById('role_' + userId).value;
-        
-        const res = await fetch('/api/admin/users/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: userId, balance: Number(balance), role: role })
-        });
-        const data = await res.json();
-        alert(data.message);
-      }
-
-      // Hàm Xóa User
-      async function deleteUser(userId) {
-        if(!confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản này không?')) return;
-        const res = await fetch('/api/admin/users/delete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: userId })
-        });
-        const data = await res.json();
-        alert(data.message);
-        if(data.success) openAdminUsers(); // Load lại bảng sau khi xóa
-      }
-    </script>
   </body>
   </html>
+  `);
+});
+
+// Khởi động server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server đang chạy tại http://localhost:${PORT}`);
+});
