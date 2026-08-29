@@ -342,6 +342,7 @@ app.get('/', (req, res) => {
 
     <div class="modal" id="registerModal">
       <div class="modal-content">
+
         <h3>Đăng Ký Tài Khoản</h3>
         <input type="text" id="regUser" placeholder="Tên tài khoản">
         <input type="password" id="regPass" placeholder="Mật khẩu">
@@ -358,7 +359,7 @@ app.get('/', (req, res) => {
           <button class="tab-btn" onclick="switchTab('tabPurchases', this)">Lịch Sử Mua Acc</button>
           <button class="tab-btn" onclick="switchTab('tabDeposits', this)">Lịch Sử Nạp Tiền</button>
         </div>
-
+        
         <div class="tab-content active" id="tabOverview">
           <div id="profileOverview" style="line-height: 1.8; margin-bottom: 15px;"></div>
           <hr style="border-color: #334155; margin: 15px 0;">
@@ -455,6 +456,7 @@ app.get('/', (req, res) => {
           const isAdmin = currentUser.role === 'admin';
           userArea.innerHTML = \`
             <span>👤 <b>\${currentUser.username}</b> \${isAdmin ? '<span class="badge-admin">ADMIN</span>' : ''} | Số dư: <b style="color:#4ade80">\${currentUser.balance.toLocaleString()}đ</b></span>
+            <button class="btn" style="background: #f59e0b; color: white; margin-right: 5px;" onclick="openAdminUsers()">👑 Quản lý User</button>
             <button class="btn btn-profile" onclick="openProfile()">👤 Hồ Sơ</button>
             <button class="btn" onclick="depositMoney()">+ Nạp Tiền</button>
             \${isAdmin ? '<button class="btn btn-admin" onclick="openModal(\\'adminModal\\')">+ Đăng Acc</button>' : ''}
@@ -813,10 +815,136 @@ app.get('/', (req, res) => {
         <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('checkModal')">Đóng lại</button>
       </div>
     </div>
+    <!-- BẢNG MODAL QUẢN LÝ NGƯỜI DÙNG (CHỈ ADMIN) -->
+    <div id="adminUsersModal" class="modal">
+      <div class="modal-content" style="max-width: 800px;">
+        <h3 style="color: #f59e0b;">👑 Quản Lý Người Dùng</h3>
+        <div style="overflow-x: auto; margin-top: 15px;">
+          <table style="width: 100%; border-collapse: collapse; color: #cbd5e1; font-size: 14px; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <th style="padding: 10px;">Tài khoản</th>
+                <th style="padding: 10px;">Số dư (VNĐ)</th>
+                <th style="padding: 10px;">Quyền hạn</th>
+                <th style="padding: 10px;">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="userListBody">
+              <!-- JS sẽ tự động tải danh sách user vào đây -->
+            </tbody>
+          </table>
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('adminUsersModal')">Đóng lại</button>
+      </div>
+    </div>
+
+    <!-- CODE JAVASCRIPT XỬ LÝ QUẢN LÝ USER -->
+    <script>
+      // Hàm mở bảng và tải dữ liệu từ MongoDB
+      async function openAdminUsers() {
+        openModal('adminUsersModal');
+        const tbody = document.getElementById('userListBody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 15px;">Đang tải dữ liệu...</td></tr>';
+        
+        try {
+          const res = await fetch('/api/admin/users');
+          const users = await res.json();
+          
+          tbody.innerHTML = '';
+          users.forEach(user => {
+            tbody.innerHTML += `
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 10px; font-weight: bold; color: #fff;">${user.username}</td>
+                <td style="padding: 10px;">
+                  <input type="number" id="bal_${user._id}" value="${user.balance || 0}" style="width: 90px; padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #4ade80; font-weight: bold; border-radius: 4px; text-align: right;">
+                </td>
+                <td style="padding: 10px;">
+                  <select id="role_${user._id}" style="padding: 5px; background: rgba(0,0,0,0.2); border: 1px solid #475569; color: #fff; border-radius: 4px;">
+                    <option value="USER" ${user.role === 'USER' ? 'selected' : ''}>Người dùng</option>
+                    <option value="ADMIN" ${user.role === 'ADMIN' ? 'selected' : ''}>Admin</option>
+                  </select>
+                </td>
+                <td style="padding: 10px;">
+                  <button onclick="updateUser('${user._id}')" style="background: #10b981; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; font-size: 12px;">Lưu</button>
+                  <button onclick="deleteUser('${user._id}')" style="background: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Xóa</button>
+                </td>
+              </tr>
+            `;
+          });
+        } catch (err) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #ef4444;">Lỗi không thể tải dữ liệu!</td></tr>';
+        }
+      }
+
+      // Hàm Lưu (Cập nhật tiền/quyền)
+      async function updateUser(userId) {
+        const balance = document.getElementById(`bal_${userId}`).value;
+        const role = document.getElementById(`role_${userId}`).value;
+        
+        const res = await fetch('/api/admin/users/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, balance: Number(balance), role })
+        });
+        const data = await res.json();
+        alert(data.message);
+      }
+
+      // Hàm Xóa User
+      async function deleteUser(userId) {
+        if(!confirm('CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản này không?')) return;
+        const res = await fetch('/api/admin/users/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId })
+        });
+        const data = await res.json();
+        alert(data.message);
+        if(data.success) openAdminUsers(); // Load lại bảng sau khi xóa
+      }
+    </script>
   </body>
   </html>
   `);
 });
+// ==========================================
+// API QUẢN LÝ NGƯỜI DÙNG (DÀNH CHO ADMIN)
+// ==========================================
 
+// 1. Lấy danh sách toàn bộ người dùng
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 }); 
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi khi tải danh sách người dùng' });
+  }
+});
+
+// 2. Cập nhật số dư và quyền của người dùng
+app.post('/api/admin/users/update', async (req, res) => {
+  try {
+    const { userId, balance, role } = req.body;
+    await User.findByIdAndUpdate(userId, { balance, role });
+    res.json({ success: true, message: '✅ Cập nhật thành công!' });
+  } catch (error) {
+    res.json({ success: false, message: '❌ Lỗi khi cập nhật' });
+  }
+});
+
+// 3. Xóa người dùng
+app.post('/api/admin/users/delete', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    await User.findByIdAndDelete(userId);
+    res.json({ success: true, message: '✅ Đã xóa tài khoản thành công!' });
+  } catch (error) {
+    res.json({ success: false, message: '❌ Lỗi khi xóa tài khoản' });
+  }
+});
+
+// 👇 ĐÂY LÀ NHỮNG DÒNG CUỐI CÙNG CỦA FILE BẠN VỪA TÌM THẤY 👇
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
