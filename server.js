@@ -712,7 +712,7 @@ app.get('/', (req, res) => {
       checkAuth();
       fetchAccounts();
     </script>
-    <!-- CHÂN TRANG (FOOTER) -->
+<!-- CHÂN TRANG (FOOTER) -->
     <footer style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(255,255,255,0.1); color: #94a3b8; padding: 40px 20px 20px; margin-top: 50px; font-size: 14px;">
       <div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; margin-bottom: 30px;">
         
@@ -726,13 +726,13 @@ app.get('/', (req, res) => {
           </div>
         </div>
 
-        <!-- Cột 2: Hỗ trợ khách hàng -->
+        <!-- Cột 2: Hỗ trợ khách hàng (Đã bấm vào hiện bảng thông tin) -->
         <div>
           <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">HỖ TRỢ KHÁCH HÀNG</h4>
           <ul style="list-style: none; display: flex; flex-direction: column; gap: 10px;">
-            <li><a href="#" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">Hướng dẫn nạp tiền / Mua hàng</a></li>
-            <li><a href="#" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">Chính sách bảo hành tài khoản</a></li>
-            <li><a href="#" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">Kiểm tra tình trạng đơn hàng</a></li>
+            <li><a href="javascript:void(0)" onclick="openModal('guideModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">📖 Hướng dẫn mua hàng / Nạp tiền</a></li>
+            <li><a href="javascript:void(0)" onclick="openModal('warrantyModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">🛡️ Chính sách bảo hành tài khoản</a></li>
+            <li><a href="javascript:void(0)" onclick="openModal('checkModal')" style="color: #94a3b8; text-decoration: none; transition: 0.3s;" onmouseover="this.style.color='#38bdf8'" onmouseout="this.style.color='#94a3b8'">🔍 Kiểm tra tình trạng đơn hàng</a></li>
           </ul>
         </div>
 
@@ -741,11 +741,10 @@ app.get('/', (req, res) => {
           <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">KẾT NỐI VỚI CHÚNG TÔI</h4>
           <p style="margin-bottom: 10px;">Hotline / Zalo: <strong style="color: #38bdf8;">0123.456.789</strong></p>
           <p style="margin-bottom: 15px;">Fanpage hỗ trợ: <a href="#" style="color: #38bdf8; text-decoration: none;">fb.com/shopcuaban</a></p>
-          <div style="display: flex; gap: 10px; font-size: 20px;">
-            <!-- Các icon tượng trưng phương thức thanh toán / liên hệ -->
-            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #fff;">Momo</span>
-            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #fff;">ATM Banking</span>
-            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; font-size: 12px; color: #fff;">Thẻ Cào</span>
+          <div style="display: flex; gap: 10px; font-size: 12px;">
+            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; color: #fff;">Momo</span>
+            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; color: #fff;">ATM Banking</span>
+            <span style="background: #334155; padding: 6px 12px; border-radius: 6px; color: #fff;">Thẻ Cào</span>
           </div>
         </div>
 
@@ -756,6 +755,45 @@ app.get('/', (req, res) => {
         <p>© 2026 <strong>Shop Game VIP</strong>. All rights reserved. Thiết kế tối ưu cho game thủ.</p>
       </div>
     </footer>
+
+    <!-- BẢNG MODAL HIỂN THỊ NỘI DUNG HƯỚNG DẪN MUA HÀNG -->
+    <div id="guideModal" class="modal">
+      <div class="modal-content">
+        <h3>📖 Hướng Dẫn Mua Hàng</h3>
+        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <p><strong>Bước 1:</strong> Đăng ký / Đăng nhập tài khoản trên website của shop.</p>
+          <p><strong>Bước 2:</strong> Nạp tiền vào tài khoản thông qua QR Code MoMo hoặc chuyển khoản ngân hàng.</p>
+          <p><strong>Bước 3:</strong> Chọn tài khoản game bạn thích tại trang chủ và bấm nút mua.</p>
+          <p><strong>Bước 4:</strong> Hệ thống tự động trừ tiền và gửi thông tin tài khoản (Tài khoản & Mật khẩu) ngay lập tức vào mục <em>Lịch sử giao dịch</em> hoặc <em>Tài khoản của tôi</em>.</p>
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('guideModal')">Đóng lại</button>
+      </div>
+    </div>
+
+    <!-- BẢNG MODAL CHÍNH SÁCH BẢO HÀNH -->
+    <div id="warrantyModal" class="modal">
+      <div class="modal-content">
+        <h3>🛡️ Chính Sách Bảo Hành</h3>
+        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <p>✅ <strong>Bảo hành đúng thông tin:</strong> Acc đúng như hình ảnh và mô tả trên web.</p>
+          <p>🔒 <strong>Lưu ý quan trọng:</strong> Ngay sau khi nhận được tài khoản, quý khách vui lòng tiến hành đổi mật khẩu và liên kết thông tin cá nhân (Email/SĐT) để bảo mật tuyệt đối.</p>
+          <p>❌ <strong>Từ chối bảo hành:</strong> Các trường hợp tự ý chia sẻ tài khoản cho người khác hoặc bị khóa do vi phạm nội quy game.</p>
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('warrantyModal')">Đóng lại</button>
+      </div>
+    </div>
+
+    <!-- BẢNG MODAL KIỂM TRA ĐƠN HÀNG -->
+    <div id="checkModal" class="modal">
+      <div class="modal-content">
+        <h3>🔍 Kiểm Tra Đơn Hàng</h3>
+        <div style="color: #cbd5e1; line-height: 1.6; font-size: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <p>Để kiểm tra lại toàn bộ các tài khoản game bạn đã mua trước đó:</p>
+          <p>👉 Bạn hãy bấm vào nút <strong>Hồ Sơ</strong> ở góc trên bên phải màn hình -> Chọn tab <strong>Lịch sử mua hàng</strong> để xem lại toàn bộ thông tin tài khoản đã giao dịch thành công.</p>
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="closeModal('checkModal')">Đóng lại</button>
+      </div>
+    </div>
   </body>
   </html>
   `);
