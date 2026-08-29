@@ -736,7 +736,7 @@ app.get('/', (req, res) => {
           </ul>
         </div>
 
- <!-- Cột 3: Kết nối với chúng tôi -->
+<!-- Cột 3: Kết nối với chúng tôi -->
         <div>
           <h4 style="color: #f8fafc; margin-bottom: 15px; font-size: 16px;">KẾT NỐI VỚI CHÚNG TÔI</h4>
           <p style="margin-bottom: 10px;">Hotline / Zalo: <strong style="color: #38bdf8;">0123.456.789</strong></p>
@@ -755,12 +755,12 @@ app.get('/', (req, res) => {
               <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Napas</span>
             </div>
 
-            <!-- Khối Logo Thẻ Cào -->
+            <!-- Khối Logo Thẻ Cào (Đã sửa link chuẩn + lót nền trắng) -->
             <div style="width: 75px; height: 75px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;">
-              <div style="display: flex; gap: 4px; margin-bottom: 6px; margin-top: 5px;">
-                <img src="https://cdn.haitrieu.com/wp-content/uploads/2021/11/Logo-Viettel-Transparent.png" alt="Viettel" style="width: 18px; height: 18px; object-fit: contain;">
-                <img src="https://cdn.haitrieu.com/wp-content/uploads/2021/11/Logo-VNPT-Vinaphone.png" alt="Vinaphone" style="width: 18px; height: 18px; object-fit: contain;">
-                <img src="https://cdn.haitrieu.com/wp-content/uploads/2021/11/Logo-Mobifone-V.png" alt="Mobifone" style="width: 18px; height: 18px; object-fit: contain;">
+              <div style="display: flex; gap: 4px; margin-bottom: 6px; margin-top: 5px; background: rgba(255,255,255,0.9); padding: 3px 5px; border-radius: 6px;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Viettel_logo_2021.svg" alt="Viettel" style="width: 16px; height: 16px; object-fit: contain;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/4/4e/Vinaphone_logo.svg" alt="Vinaphone" style="width: 16px; height: 16px; object-fit: contain;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/b/b3/Mobifone_logo.svg" alt="Mobifone" style="width: 16px; height: 16px; object-fit: contain;">
               </div>
               <span style="font-size: 12px; color: #cbd5e1; font-weight: bold;">Thẻ Cào</span>
             </div>
