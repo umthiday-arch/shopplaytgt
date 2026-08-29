@@ -907,46 +907,5 @@ app.get('/', (req, res) => {
     </script>
   </body>
   </html>
-  `);
-});
-// ==========================================
-// API QUẢN LÝ NGƯỜI DÙNG (DÀNH CHO ADMIN)
-// ==========================================
-
-// 1. Lấy danh sách toàn bộ người dùng
-app.get('/api/admin/users', async (req, res) => {
-  try {
-    const users = await User.find().sort({ createdAt: -1 }); 
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ error: 'Lỗi khi tải danh sách người dùng' });
-  }
-});
-
-// 2. Cập nhật số dư và quyền của người dùng
-app.post('/api/admin/users/update', async (req, res) => {
-  try {
-    const { userId, balance, role } = req.body;
-    await User.findByIdAndUpdate(userId, { balance, role });
-    res.json({ success: true, message: '✅ Cập nhật thành công!' });
-  } catch (error) {
-    res.json({ success: false, message: '❌ Lỗi khi cập nhật' });
-  }
-});
-
-// 3. Xóa người dùng
-app.post('/api/admin/users/delete', async (req, res) => {
-  try {
-    const { userId } = req.body;
-    await User.findByIdAndDelete(userId);
-    res.json({ success: true, message: '✅ Đã xóa tài khoản thành công!' });
-  } catch (error) {
-    res.json({ success: false, message: '❌ Lỗi khi xóa tài khoản' });
-  }
-});
-
-// 👇 ĐÂY LÀ NHỮNG DÒNG CUỐI CÙNG CỦA FILE BẠN VỪA TÌM THẤY 👇
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
