@@ -265,7 +265,7 @@ app.get('/', (req, res) => {
       
       body { 
         background-color: #0f172a; 
-        background-image: url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop'); 
+        background-image: url('https://cdn-media.sforum.vn/storage/app/media/ctvseo_maihue/hinh-nen-game-thu-4k/hinh-nen-game-thu-4k-34.jpg'); 
         background-size: cover;
         background-attachment: fixed;
         background-position: center;
